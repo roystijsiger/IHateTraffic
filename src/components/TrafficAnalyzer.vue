@@ -164,18 +164,33 @@ const generateTimeSlots = (start: string, end: string): string[] => {
   const startParts = start.split(':').map(Number)
   const endParts = end.split(':').map(Number)
   
-  let currentHour = startParts[0] || 0
-  let currentMin = startParts[1] || 0
+  const startHour = startParts[0] || 0
+  const startMin = startParts[1] || 0
   const endHour = endParts[0] || 23
   const endMin = endParts[1] || 59
 
-  while (currentHour < endHour || (currentHour === endHour && currentMin <= endMin)) {
+  // Calculate total minutes
+  const startTotalMin = startHour * 60 + startMin
+  const endTotalMin = endHour * 60 + endMin
+  const totalMinutes = endTotalMin - startTotalMin
+
+  // Smart interval: max 24 data points, min 5 min interval, max 30 min interval
+  const MAX_POINTS = 24
+  let interval = Math.max(5, Math.ceil(totalMinutes / MAX_POINTS))
+  
+  // Round interval to multiples of 5
+  interval = Math.ceil(interval / 5) * 5
+  
+  // Cap at 30 minutes to not miss peak times
+  interval = Math.min(interval, 30)
+
+  let currentTotalMin = startTotalMin
+  
+  while (currentTotalMin <= endTotalMin) {
+    const currentHour = Math.floor(currentTotalMin / 60)
+    const currentMin = currentTotalMin % 60
     slots.push(`${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}`)
-    currentMin += 5
-    if (currentMin >= 60) {
-      currentMin = 0
-      currentHour += 1
-    }
+    currentTotalMin += interval
   }
 
   return slots
@@ -831,11 +846,16 @@ const chartOptions: ChartOptions<'line'> = {
 
 <style scoped>
 .traffic-analyzer {
-  max-width: 1200px;
+  max-width: 100%;
   margin: 0 auto;
   padding: 0;
   padding-bottom: 2rem;
   position: relative;
+}
+
+.traffic-analyzer > * {
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* Sticky header */
@@ -1234,6 +1254,7 @@ const chartOptions: ChartOptions<'line'> = {
   position: relative;
   z-index: 1;
   margin-bottom: 0;
+  width: 100%;
 }
 
 .header-content {
@@ -1241,8 +1262,9 @@ const chartOptions: ChartOptions<'line'> = {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  max-width: 1200px;
+  max-width: 850px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .header-text {
@@ -1272,8 +1294,10 @@ h1 {
   padding: 0.75rem 1rem;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin: 1rem auto;
-  max-width: 900px;
+  margin: 1rem 1rem;
+  max-width: 850px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .recent-searches h3 {
@@ -1312,8 +1336,10 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  margin: 1rem auto;
-  max-width: 900px;
+  margin: 1rem 1rem;
+  max-width: 850px;
+  margin-left: auto;
+  margin-right: auto;
   position: relative;
   z-index: 1;
 }
@@ -1458,8 +1484,10 @@ input[type='text']::placeholder {
   background: white;
   border-radius: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  margin: 1rem auto;
-  max-width: 900px;
+  margin: 1rem 1rem;
+  max-width: 850px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .spinner {
@@ -1522,8 +1550,10 @@ input[type='text']::placeholder {
   border: 2px solid #f88;
   border-radius: 16px;
   padding: 2rem;
-  margin: 1rem auto;
-  max-width: 900px;
+  margin: 1rem 1rem;
+  max-width: 850px;
+  margin-left: auto;
+  margin-right: auto;
   text-align: center;
   animation: fadeIn 0.5s;
   position: relative;
@@ -1556,8 +1586,10 @@ input[type='text']::placeholder {
   animation: fadeIn 0.5s;
   position: relative;
   z-index: 1;
-  margin: 1rem auto;
-  max-width: 900px;
+  margin: 1rem 1rem;
+  max-width: 850px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 @keyframes fadeIn {
