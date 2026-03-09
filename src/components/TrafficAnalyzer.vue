@@ -622,21 +622,51 @@ const setAlarm = async (time: string) => {
   savedAlarms.value.push(newAlarm)
   localStorage.setItem('savedAlarms', JSON.stringify(savedAlarms.value))
   
-  // Try Firebase Cloud Messaging (optioneel)
-  if (notificationsEnabled.value) {
+  // Schedule notification via Service Worker (for when app is closed)
+  if ('serviceWorker' in navigator && notificationsEnabled.value) {
     try {
-      const token = await requestNotificationPermission()
-      if (token) {
-        fcmToken.value = token
-        console.log('FCM Token:', token)
-      }
+      const registration = await navigator.serviceWorker.ready
+      await scheduleNotificationViaServiceWorker(time, registration)
     } catch (error) {
-      console.log('FCM not available, using browser notifications:', error)
+      console.log('Service Worker scheduling not available:', error)
     }
   }
   
-  // Schedule alarm based on repeat setting
+  // Fallback: Schedule alarm based on repeat setting (for when app is open)
   scheduleAlarmWithRepeat(time)
+}
+
+const scheduleNotificationViaServiceWorker = async (time: string, registration: ServiceWorkerRegistration) => {
+  const [hours, minutes] = time.split(':').map(Number)
+  const scheduledDate = new Date()
+  scheduledDate.setHours(hours || 0, minutes || 0, 0, 0)
+  
+  // If time has passed today, schedule for tomorrow
+  if (scheduledDate <= new Date()) {
+    scheduledDate.setDate(scheduledDate.getDate() + 1)
+  }
+  
+  const scheduledTime = scheduledDate.getTime()
+  
+  // Try using Notification Triggers API via service worker
+  const messageChannel = new MessageChannel()
+  
+  messageChannel.port1.onmessage = (event) => {
+    if (event.data.success === false) {
+      console.log('Notification Triggers API not supported, using fallback')
+    }
+  }
+  
+  registration.active?.postMessage({
+    type: 'SCHEDULE_NOTIFICATION',
+    time: time,
+    title: '⏰ Time to leave!',
+    body: `Beat the traffic! Depart at ${time} for ${fromLocation.value} → ${toLocation.value}`,
+    tag: `alarm-${Date.now()}`,
+    scheduledTime: scheduledTime
+  }, [messageChannel.port2])
+  
+  console.log(`Scheduled notification via Service Worker for ${scheduledDate.toLocaleString()}`)
 }
 
 const scheduleAlarmWithRepeat = (time: string) => {
