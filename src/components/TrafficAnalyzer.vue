@@ -52,6 +52,8 @@ const fcmToken = ref<string | null>(null)
 const alarmRepeat = ref<'once' | 'daily' | 'weekly' | 'weekdays'>('once')
 const activeAlarms = ref<number[]>([])
 const showAlarmManager = ref<boolean>(false)
+const showInstallPrompt = ref<boolean>(false)
+const deferredPrompt = ref<any>(null)
 
 interface SavedAlarm {
   time: string
@@ -105,6 +107,25 @@ onMounted(async () => {
   if ('Notification' in window) {
     notificationsEnabled.value = Notification.permission === 'granted'
   }
+  
+  // PWA install prompt
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault()
+    deferredPrompt.value = e
+    showInstallPrompt.value = true
+    console.log('PWA install prompt available')
+  })
+  
+  window.addEventListener('appinstalled', () => {
+    console.log('PWA installed successfully!')
+    showInstallPrompt.value = false
+    deferredPrompt.value = null
+    
+    showLocationStatus.value = true
+    locationStatus.value = '✅ App geïnstalleerd! Je krijgt nu push notificaties.'
+    locationStatusType.value = 'success'
+    setTimeout(() => showLocationStatus.value = false, 5000)
+  })
   
   // Listen for foreground messages
   try {
@@ -787,6 +808,29 @@ const testNotification = async () => {
   }
 }
 
+const installApp = async () => {
+  if (!deferredPrompt.value) {
+    alert('📱 Open deze site in je browser om de app te installeren!')
+    return
+  }
+  
+  deferredPrompt.value.prompt()
+  const { outcome } = await deferredPrompt.value.userChoice
+  
+  if (outcome === 'accepted') {
+    console.log('User accepted the install prompt')
+  } else {
+    console.log('User dismissed the install prompt')
+  }
+  
+  deferredPrompt.value = null
+  showInstallPrompt.value = false
+}
+
+const dismissInstallPrompt = () => {
+  showInstallPrompt.value = false
+}
+
 const shareResults = () => {
   const bestTime = bestTimes.value[0] || 'unknown'
   const minDuration = Math.min(...travelTimes.value.map((t) => t.duration))
@@ -919,6 +963,21 @@ const chartOptions: ChartOptions<'line'> = {
 
 <template>
   <div class="traffic-analyzer">
+    <!-- PWA Install Banner -->
+    <div v-if="showInstallPrompt" class="pwa-install-banner">
+      <div class="pwa-banner-content">
+        <div class="pwa-banner-icon">📱</div>
+        <div class="pwa-banner-text">
+          <strong>Installeer de app!</strong>
+          <p>Krijg push notificaties op je telefoon, ook als de app gesloten is.</p>
+        </div>
+      </div>
+      <div class="pwa-banner-actions">
+        <button @click="installApp" class="pwa-install-btn">Installeren</button>
+        <button @click="dismissInstallPrompt" class="pwa-dismiss-btn">✕</button>
+      </div>
+    </div>
+
     <!-- Animated background -->
     <div class="animated-bg">
       <div class="car car-1">🚗</div>
@@ -1319,6 +1378,116 @@ const chartOptions: ChartOptions<'line'> = {
 </template>
 
 <style scoped>
+/* PWA Install Banner */
+.pwa-install-banner {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  animation: slideDown 0.5s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.pwa-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.pwa-banner-icon {
+  font-size: 2rem;
+}
+
+.pwa-banner-text strong {
+  display: block;
+  font-size: 1.1rem;
+  margin-bottom: 0.25rem;
+}
+
+.pwa-banner-text p {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.pwa-banner-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.pwa-install-btn {
+  background: white;
+  color: #667eea;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.pwa-install-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.pwa-dismiss-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pwa-dismiss-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 768px) {
+  .pwa-install-banner {
+    flex-direction: column;
+    text-align: center;
+    padding: 1rem;
+  }
+  
+  .pwa-banner-content {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .pwa-banner-actions {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 .traffic-analyzer {
   max-width: 100%;
   margin: 0 auto;
