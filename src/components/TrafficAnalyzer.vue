@@ -267,25 +267,45 @@ const useCurrentLocation = async () => {
     return
   }
 
+  try {
+    await loadGoogleMapsAPI()
+  } catch (error) {
+    alert('Google Maps kon niet geladen worden')
+    return
+  }
+
   navigator.geolocation.getCurrentPosition(
     async (position) => {
       const lat = position.coords.latitude
       const lng = position.coords.longitude
       
-      // Reverse geocode to get address
-      const google = (window as any).google
-      const geocoder = new google.maps.Geocoder()
-      geocoder.geocode(
-        { location: { lat, lng } },
-        (results: any[], status: string) => {
-          if (status === 'OK' && results[0]) {
-            fromLocation.value = results[0].formatted_address
-          }
+      try {
+        // Reverse geocode to get address
+        const google = (window as any).google
+        if (!google || !google.maps || !google.maps.Geocoder) {
+          alert('Google Maps is niet beschikbaar')
+          return
         }
-      )
+        
+        const geocoder = new google.maps.Geocoder()
+        geocoder.geocode(
+          { location: { lat, lng } },
+          (results: any[], status: string) => {
+            if (status === 'OK' && results[0]) {
+              fromLocation.value = results[0].formatted_address
+            } else {
+              alert('Kon adres niet ophalen van je locatie')
+            }
+          }
+        )
+      } catch (error) {
+        console.error('Geocoding error:', error)
+        alert('Er ging iets mis bij het ophalen van je adres')
+      }
     },
-    () => {
-      alert('Kon je locatie niet ophalen')
+    (error) => {
+      console.error('Geolocation error:', error)
+      alert('Kon je locatie niet ophalen. Controleer of je toestemming hebt gegeven.')
     }
   )
 }
