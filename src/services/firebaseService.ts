@@ -96,7 +96,6 @@ export async function scheduleAlarmNotification(time: string): Promise<void> {
         body: 'Beat the traffic! It\'s your optimal departure time.',
         icon: '/icon.png',
         badge: '/badge.png',
-        vibrate: [200, 100, 200],
         tag: 'traffic-alarm',
         requireInteraction: true
       })

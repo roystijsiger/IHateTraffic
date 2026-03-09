@@ -658,7 +658,6 @@ const scheduleAlarmWithRepeat = (time: string) => {
           body: `Beat the traffic! Depart at ${time} for ${fromLocation.value} → ${toLocation.value}`,
           icon: '/icon.png',
           badge: '/badge.png',
-          vibrate: [200, 100, 200],
           tag: 'traffic-alarm',
           requireInteraction: true
         })
@@ -708,8 +707,7 @@ const testNotification = async () => {
       if (permission === 'granted') {
         new Notification('🎉 Test succesvol!', {
           body: 'Notificaties werken! Je krijgt een melding op je alarm tijd.',
-          icon: '/icon.png',
-          vibrate: [200, 100, 200]
+          icon: '/icon.png'
         })
       } else {
         alert('❌ Notificaties geblokkeerd. Check je browser instellingen.')
@@ -717,8 +715,7 @@ const testNotification = async () => {
     } else if (Notification.permission === 'granted') {
       new Notification('🎉 Test succesvol!', {
         body: 'Notificaties werken! Je krijgt een melding op je alarm tijd.',
-        icon: '/icon.png',
-        vibrate: [200, 100, 200]
+        icon: '/icon.png'
       })
     } else {
       alert('❌ Notificaties zijn geblokkeerd. Ga naar je browser instellingen om dit te wijzigen.')
