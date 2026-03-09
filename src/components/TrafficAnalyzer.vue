@@ -37,6 +37,7 @@ const addressBook = ref<Array<{ name: string; address: string; emoji: string }>>
 const recentSearches = ref<Array<{ from: string; to: string }>>([])
 const alarmTime = ref<string>('')
 const showAlarmSet = ref<boolean>(false)
+const showAlarmSelector = ref<boolean>(false)
 const showAddressBook = ref<boolean>(false)
 const showEmojiPicker = ref<boolean>(false)
 const newAddressName = ref<string>('')
@@ -507,8 +508,13 @@ const loadRecentSearch = (search: { from: string; to: string }) => {
   toLocation.value = search.to
 }
 
+const openAlarmSelector = () => {
+  showAlarmSelector.value = true
+}
+
 const setAlarm = (time: string) => {
   alarmTime.value = time
+  showAlarmSelector.value = false
   showAlarmSet.value = true
   setTimeout(() => showAlarmSet.value = false, 3000)
   
@@ -854,6 +860,28 @@ const chartOptions: ChartOptions<'line'> = {
       <p>{{ currentLoadingMessage }}</p>
     </div>
 
+    <!-- Alarm selector dialog -->
+    <div v-if="showAlarmSelector" class="modal-overlay" @click="showAlarmSelector = false">
+      <div class="modal-content" @click.stop>
+        <h3>⏰ Selecteer alarm tijd</h3>
+        <p class="modal-subtitle">Kies voor welk tijdstip je een alarm wilt instellen:</p>
+        <div class="time-selection-grid">
+          <button 
+            v-for="time in travelTimes" 
+            :key="time.time"
+            @click="setAlarm(time.time)"
+            class="time-selection-btn"
+            :class="{ 'best-time': bestTimes.includes(time.time) }"
+          >
+            <span class="time-value">{{ time.time }}</span>
+            <span class="duration-value">{{ time.duration }} min</span>
+            <span v-if="bestTimes.includes(time.time)" class="best-badge">✨ Beste tijd</span>
+          </button>
+        </div>
+        <button @click="showAlarmSelector = false" class="modal-close-btn">Annuleren</button>
+      </div>
+    </div>
+
     <!-- Alarm set notification -->
     <div v-if="showAlarmSet" class="alarm-notification">
       ⏰ Alarm set for {{ alarmTime }}!
@@ -912,7 +940,7 @@ const chartOptions: ChartOptions<'line'> = {
 
         <!-- Action buttons -->
         <div class="action-buttons">
-          <button @click="setAlarm(bestTimes[0] || '09:00')" class="action-btn">
+          <button @click="openAlarmSelector" class="action-btn">
             🔔 Set Alarm
           </button>
           <button @click="shareResults" class="action-btn">
@@ -1007,6 +1035,104 @@ const chartOptions: ChartOptions<'line'> = {
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+.modal-content {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s;
+}
+
+.modal-content h3 {
+  margin: 0 0 0.5rem 0;
+  color: #ff6b6b;
+  font-size: 1.5rem;
+}
+
+.modal-subtitle {
+  margin: 0 0 1.5rem 0;
+  color: #666;
+  font-size: 0.95rem;
+}
+
+.time-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+
+.time-selection-btn {
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  position: relative;
+}
+
+.time-selection-btn:hover {
+  border-color: #ff6b6b;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.2);
+}
+
+.time-selection-btn.best-time {
+  background: linear-gradient(135deg, #fff5f5 0%, #ffe0e0 100%);
+  border-color: #ff6b6b;
+  border-width: 3px;
+}
+
+.time-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #333;
+}
+
+.duration-value {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.best-badge {
+  font-size: 0.7rem;
+  color: #ff6b6b;
+  font-weight: 600;
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+}
+
+.modal-close-btn {
+  width: 100%;
+  background: #f5f5f5;
+  border: none;
+  padding: 0.85rem;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.modal-close-btn:hover {
+  background: #e0e0e0;
+  color: #333;
 }
 
 .modal-header {
