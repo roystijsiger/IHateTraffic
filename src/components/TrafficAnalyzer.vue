@@ -91,7 +91,7 @@ const generateTimeSlots = (start: string, end: string): string[] => {
   const endParts = end.split(':').map(Number)
   
   let currentHour = startParts[0] || 0
-  let currentMin = startParts[0] || 0
+  let currentMin = startParts[1] || 0
   const endHour = endParts[0] || 23
   const endMin = endParts[1] || 59
 
@@ -338,15 +338,10 @@ h1 {
   padding: 2rem;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
-  align-items: flex-end;
   margin-bottom: 2rem;
-}
-
-.location-group {
-  grid-column: span 2;
 }
 
 .form-group {
@@ -368,8 +363,7 @@ input[type='text'] {
   border-radius: 8px;
   font-size: 1rem;
   transition: border-color 0.3s;
-  position: relative;
-  z-index: 1;
+  width: 100%;
 }
 
 select:focus,
@@ -377,7 +371,6 @@ input[type='time']:focus,
 input[type='text']:focus {
   outline: none;
   border-color: #42b983;
-  z-index: 1000;
 }
 
 input[type='text']::placeholder {
@@ -395,10 +388,11 @@ input[type='text']::placeholder {
   cursor: pointer;
   transition: all 0.3s;
   white-space: nowrap;
-  grid-column: 1 / -1;
+  width: 100%;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+  margin-top: 1rem;
 }
 
 .analyze-btn:hover:not(:disabled) {
@@ -537,16 +531,16 @@ input[type='text']::placeholder {
 }
 
 @media (max-width: 768px) {
+  h1 {
+    font-size: 2rem;
+  }
+
+  .tagline {
+    font-size: 1rem;
+  }
+
   .form-container {
-    grid-template-columns: 1fr;
-  }
-
-  .location-group {
-    grid-column: span 1;
-  }
-
-  .analyze-btn {
-    width: 100%;
+    padding: 1.5rem;
   }
 }
 </style>
