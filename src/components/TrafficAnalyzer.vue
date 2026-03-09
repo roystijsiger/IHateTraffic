@@ -42,6 +42,9 @@ const showEmojiPicker = ref<boolean>(false)
 const newAddressName = ref<string>('')
 const newAddressLocation = ref<string>('')
 const newAddressEmoji = ref<string>('📍')
+const locationStatus = ref<string>('')
+const showLocationStatus = ref<boolean>(false)
+const locationStatusType = ref<'success' | 'error' | 'info'>('info')
 
 const emojis = ['📍', '🏠', '💼', '🏢', '🏫', '🏥', '🏪', '🍕', '☕', '🏋️', '⛪', '🚉', '✈️', '🎭', '🎨', '❤️']
 
@@ -282,10 +285,16 @@ const useCurrentLocation = async () => {
     return
   }
 
+  locationStatus.value = '📍 Locatie ophalen...'
+  locationStatusType.value = 'info'
+  showLocationStatus.value = true
+
   try {
     await loadGoogleMapsAPI()
   } catch (error) {
-    alert('Google Maps kon niet geladen worden')
+    locationStatus.value = '❌ Google Maps laden mislukt'
+    locationStatusType.value = 'error'
+    setTimeout(() => showLocationStatus.value = false, 3000)
     console.error('Google Maps load error:', error)
     return
   }
@@ -301,13 +310,17 @@ const useCurrentLocation = async () => {
       const lat = position.coords.latitude
       const lng = position.coords.longitude
       
+      locationStatus.value = '🔍 Adres zoeken...'
+      locationStatusType.value = 'info'
       console.log('Got location:', lat, lng)
       
       try {
         // Reverse geocode to get address
         const google = (window as any).google
         if (!google || !google.maps || !google.maps.Geocoder) {
-          alert('Google Maps is niet beschikbaar')
+          locationStatus.value = '❌ Google Maps niet beschikbaar'
+          locationStatusType.value = 'error'
+          setTimeout(() => showLocationStatus.value = false, 3000)
           return
         }
         
@@ -318,28 +331,37 @@ const useCurrentLocation = async () => {
             console.log('Geocode status:', status, 'Results:', results)
             if (status === 'OK' && results && results[0]) {
               fromLocation.value = results[0].formatted_address
+              locationStatus.value = '✅ Locatie ingevuld!'
+              locationStatusType.value = 'success'
               console.log('Set location to:', results[0].formatted_address)
+              setTimeout(() => showLocationStatus.value = false, 2000)
             } else {
-              alert('Kon adres niet ophalen van je locatie (status: ' + status + ')')
+              locationStatus.value = '❌ Adres niet gevonden'
+              locationStatusType.value = 'error'
+              setTimeout(() => showLocationStatus.value = false, 3000)
             }
           }
         )
       } catch (error) {
         console.error('Geocoding error:', error)
-        alert('Er ging iets mis bij het ophalen van je adres: ' + error)
+        locationStatus.value = '❌ Fout bij adres ophalen'
+        locationStatusType.value = 'error'
+        setTimeout(() => showLocationStatus.value = false, 3000)
       }
     },
     (error) => {
       console.error('Geolocation error:', error)
-      let message = 'Kon je locatie niet ophalen. '
+      locationStatusType.value = 'error'
       if (error.code === 1) {
-        message += 'Geef toestemming voor locatietoegang.'
+        locationStatus.value = '❌ Geen toestemming'
       } else if (error.code === 2) {
-        message += 'Locatie niet beschikbaar.'
+        locationStatus.value = '❌ Locatie niet beschikbaar'
       } else if (error.code === 3) {
-        message += 'Time-out bij ophalen locatie.'
+        locationStatus.value = '⏱️ Time-out'
+      } else {
+        locationStatus.value = '❌ Fout opgetreden'
       }
-      alert(message)
+      setTimeout(() => showLocationStatus.value = false, 3000)
     },
     options
   )
@@ -352,10 +374,16 @@ const useCurrentLocationForAddressBook = async () => {
     return
   }
 
+  locationStatus.value = '📍 Locatie ophalen...'
+  locationStatusType.value = 'info'
+  showLocationStatus.value = true
+
   try {
     await loadGoogleMapsAPI()
   } catch (error) {
-    alert('Google Maps kon niet geladen worden')
+    locationStatus.value = '❌ Google Maps laden mislukt'
+    locationStatusType.value = 'error'
+    setTimeout(() => showLocationStatus.value = false, 3000)
     console.error('Google Maps load error:', error)
     return
   }
@@ -371,12 +399,16 @@ const useCurrentLocationForAddressBook = async () => {
       const lat = position.coords.latitude
       const lng = position.coords.longitude
       
+      locationStatus.value = '🔍 Adres zoeken...'
+      locationStatusType.value = 'info'
       console.log('Got location for address book:', lat, lng)
       
       try {
         const google = (window as any).google
         if (!google || !google.maps || !google.maps.Geocoder) {
-          alert('Google Maps is niet beschikbaar')
+          locationStatus.value = '❌ Google Maps niet beschikbaar'
+          locationStatusType.value = 'error'
+          setTimeout(() => showLocationStatus.value = false, 3000)
           return
         }
         
@@ -387,28 +419,37 @@ const useCurrentLocationForAddressBook = async () => {
             console.log('Geocode status:', status, 'Results:', results)
             if (status === 'OK' && results && results[0]) {
               newAddressLocation.value = results[0].formatted_address
+              locationStatus.value = '✅ Locatie ingevuld!'
+              locationStatusType.value = 'success'
               console.log('Set address book location to:', results[0].formatted_address)
+              setTimeout(() => showLocationStatus.value = false, 2000)
             } else {
-              alert('Kon adres niet ophalen van je locatie (status: ' + status + ')')
+              locationStatus.value = '❌ Adres niet gevonden'
+              locationStatusType.value = 'error'
+              setTimeout(() => showLocationStatus.value = false, 3000)
             }
           }
         )
       } catch (error) {
         console.error('Geocoding error:', error)
-        alert('Er ging iets mis bij het ophalen van je adres: ' + error)
+        locationStatus.value = '❌ Fout bij adres ophalen'
+        locationStatusType.value = 'error'
+        setTimeout(() => showLocationStatus.value = false, 3000)
       }
     },
     (error) => {
       console.error('Geolocation error:', error)
-      let message = 'Kon je locatie niet ophalen. '
+      locationStatusType.value = 'error'
       if (error.code === 1) {
-        message += 'Geef toestemming voor locatietoegang.'
+        locationStatus.value = '❌ Geen toestemming'
       } else if (error.code === 2) {
-        message += 'Locatie niet beschikbaar.'
+        locationStatus.value = '❌ Locatie niet beschikbaar'
       } else if (error.code === 3) {
-        message += 'Time-out bij ophalen locatie.'
+        locationStatus.value = '❌ Time-out'
+      } else {
+        locationStatus.value = '❌ Fout opgetreden'
       }
-      alert(message)
+      setTimeout(() => showLocationStatus.value = false, 3000)
     },
     options
   )
@@ -646,7 +687,7 @@ const chartOptions: ChartOptions<'line'> = {
         </div>
         
         <div class="add-address-form">
-          <div class="form-row compact">
+          <div class="form-row-top">
             <div class="emoji-picker-wrapper">
               <label class="emoji-label">Emoji</label>
               <button 
@@ -657,7 +698,7 @@ const chartOptions: ChartOptions<'line'> = {
                 {{ newAddressEmoji }} <span class="picker-arrow">▼</span>
               </button>
             </div>
-            <div class="name-wrapper">
+            <div class="name-location-wrapper">
               <label class="input-label">Naam</label>
               <input
                 v-model="newAddressName"
@@ -667,22 +708,20 @@ const chartOptions: ChartOptions<'line'> = {
                 maxlength="20"
               />
             </div>
+            <button @click="useCurrentLocationForAddressBook" class="icon-btn location-btn-inline" title="Huidige locatie">
+              📍
+            </button>
           </div>
           
           <div class="address-wrapper">
             <label class="input-label">Adres</label>
-            <div class="input-with-buttons">
-              <input
-                id="address-location"
-                v-model="newAddressLocation"
-                type="text"
-                placeholder="Type een adres..."
-                class="address-input address-input-full"
-              />
-              <button @click="useCurrentLocationForAddressBook" class="icon-btn" title="Huidige locatie">
-                📍
-              </button>
-            </div>
+            <input
+              id="address-location"
+              v-model="newAddressLocation"
+              type="text"
+              placeholder="Type een adres..."
+              class="address-input address-input-full"
+            />
           </div>
           
           <div v-if="showEmojiPicker" class="emoji-picker-popup">
@@ -818,6 +857,11 @@ const chartOptions: ChartOptions<'line'> = {
     <!-- Alarm set notification -->
     <div v-if="showAlarmSet" class="alarm-notification">
       ⏰ Alarm set for {{ alarmTime }}!
+    </div>
+    
+    <!-- Location status notification -->
+    <div v-if="showLocationStatus" :class="['location-notification', locationStatusType]">
+      {{ locationStatus }}
     </div>
 
     <div v-if="hasError" class="error-message">
@@ -1024,7 +1068,13 @@ const chartOptions: ChartOptions<'line'> = {
   margin-bottom: 0.25rem;
 }
 
-.name-wrapper {
+.form-row-top {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.name-location-wrapper {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -1034,6 +1084,13 @@ const chartOptions: ChartOptions<'line'> = {
   display: flex;
   flex-direction: column;
   width: 100%;
+}
+
+.location-btn-inline {
+  flex-shrink: 0;
+  height: 50px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0;
 }
 
 .emoji-picker-btn {
@@ -1105,7 +1162,7 @@ const chartOptions: ChartOptions<'line'> = {
 }
 
 .name-input {
-  flex: 1;
+  width: 100%;
 }
 
 .address-input-full {
@@ -1565,6 +1622,34 @@ input[type='text']::placeholder {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   animation: slideIn 0.3s, slideOut 0.3s 2.7s;
   z-index: 1000;
+  font-weight: 600;
+}
+
+/* Location status notification */
+.location-notification {
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  animation: slideIn 0.3s;
+  z-index: 1000;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.location-notification.success {
+  background: #42b983;
+}
+
+.location-notification.error {
+  background: #ff6b6b;
+}
+
+.location-notification.info {
+  background: #3498db;
 }
 
 @keyframes slideIn {
