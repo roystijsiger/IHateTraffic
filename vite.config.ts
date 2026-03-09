@@ -6,7 +6,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/traffic-app/', // Vervang dit met je repository naam
+  base: '/IHateTraffic/',
   plugins: [
     vue(),
     vueDevTools(),
