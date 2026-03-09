@@ -1397,11 +1397,9 @@ const chartOptions: ChartOptions<'line'> = {
       </div>
 
       <div class="chart-container">
-        <div class="chart-header">
-          <h3>📈 Reistijd Analyse</h3>
-          <p class="chart-description">Gedetailleerd overzicht van reistijden gedurende de dag</p>
+        <div>
+          <Line :data="chartData" :options="chartOptions" />
         </div>
-        <Line :data="chartData" :options="chartOptions" />
       </div>
     </div>
   </div>
@@ -2835,10 +2833,15 @@ input[type='text']::placeholder {
 
 .chart-container {
   background: white;
-  padding: 2rem;
+  padding: 1rem;
   border-radius: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   margin-top: 1.5rem;
+  min-height: 350px;
+}
+
+.chart-container > div {
+  height: 350px;
 }
 
 .chart-header {

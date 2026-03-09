@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/IHateTraffic/dev-sw.js?dev-sw', { scope: '/IHateTraffic/', type: 'classic' })
