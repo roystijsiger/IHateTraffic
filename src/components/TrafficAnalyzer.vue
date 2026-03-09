@@ -186,7 +186,7 @@ const generateTimeSlots = (start: string, end: string): string[] => {
 
   let currentTotalMin = startTotalMin
   
-  while (currentTotalMin <= endTotalMin) {
+  while (currentTotalMin < endTotalMin) {
     const currentHour = Math.floor(currentTotalMin / 60)
     const currentMin = currentTotalMin % 60
     slots.push(`${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}`)
@@ -286,13 +286,22 @@ const useCurrentLocation = async () => {
     await loadGoogleMapsAPI()
   } catch (error) {
     alert('Google Maps kon niet geladen worden')
+    console.error('Google Maps load error:', error)
     return
+  }
+
+  const options = {
+    enableHighAccuracy: true,
+    timeout: 10000,
+    maximumAge: 0
   }
 
   navigator.geolocation.getCurrentPosition(
     async (position) => {
       const lat = position.coords.latitude
       const lng = position.coords.longitude
+      
+      console.log('Got location:', lat, lng)
       
       try {
         // Reverse geocode to get address
@@ -306,22 +315,33 @@ const useCurrentLocation = async () => {
         geocoder.geocode(
           { location: { lat, lng } },
           (results: any[], status: string) => {
-            if (status === 'OK' && results[0]) {
+            console.log('Geocode status:', status, 'Results:', results)
+            if (status === 'OK' && results && results[0]) {
               fromLocation.value = results[0].formatted_address
+              console.log('Set location to:', results[0].formatted_address)
             } else {
-              alert('Kon adres niet ophalen van je locatie')
+              alert('Kon adres niet ophalen van je locatie (status: ' + status + ')')
             }
           }
         )
       } catch (error) {
         console.error('Geocoding error:', error)
-        alert('Er ging iets mis bij het ophalen van je adres')
+        alert('Er ging iets mis bij het ophalen van je adres: ' + error)
       }
     },
     (error) => {
       console.error('Geolocation error:', error)
-      alert('Kon je locatie niet ophalen. Controleer of je toestemming hebt gegeven.')
-    }
+      let message = 'Kon je locatie niet ophalen. '
+      if (error.code === 1) {
+        message += 'Geef toestemming voor locatietoegang.'
+      } else if (error.code === 2) {
+        message += 'Locatie niet beschikbaar.'
+      } else if (error.code === 3) {
+        message += 'Time-out bij ophalen locatie.'
+      }
+      alert(message)
+    },
+    options
   )
 }
 
@@ -336,13 +356,22 @@ const useCurrentLocationForAddressBook = async () => {
     await loadGoogleMapsAPI()
   } catch (error) {
     alert('Google Maps kon niet geladen worden')
+    console.error('Google Maps load error:', error)
     return
+  }
+
+  const options = {
+    enableHighAccuracy: true,
+    timeout: 10000,
+    maximumAge: 0
   }
 
   navigator.geolocation.getCurrentPosition(
     async (position) => {
       const lat = position.coords.latitude
       const lng = position.coords.longitude
+      
+      console.log('Got location for address book:', lat, lng)
       
       try {
         const google = (window as any).google
@@ -355,22 +384,33 @@ const useCurrentLocationForAddressBook = async () => {
         geocoder.geocode(
           { location: { lat, lng } },
           (results: any[], status: string) => {
-            if (status === 'OK' && results[0]) {
+            console.log('Geocode status:', status, 'Results:', results)
+            if (status === 'OK' && results && results[0]) {
               newAddressLocation.value = results[0].formatted_address
+              console.log('Set address book location to:', results[0].formatted_address)
             } else {
-              alert('Kon adres niet ophalen van je locatie')
+              alert('Kon adres niet ophalen van je locatie (status: ' + status + ')')
             }
           }
         )
       } catch (error) {
         console.error('Geocoding error:', error)
-        alert('Er ging iets mis bij het ophalen van je adres')
+        alert('Er ging iets mis bij het ophalen van je adres: ' + error)
       }
     },
     (error) => {
       console.error('Geolocation error:', error)
-      alert('Kon je locatie niet ophalen. Controleer of je toestemming hebt gegeven.')
-    }
+      let message = 'Kon je locatie niet ophalen. '
+      if (error.code === 1) {
+        message += 'Geef toestemming voor locatietoegang.'
+      } else if (error.code === 2) {
+        message += 'Locatie niet beschikbaar.'
+      } else if (error.code === 3) {
+        message += 'Time-out bij ophalen locatie.'
+      }
+      alert(message)
+    },
+    options
   )
 }
 
@@ -1119,11 +1159,13 @@ const chartOptions: ChartOptions<'line'> = {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
   padding: 1rem;
   border: 2px solid #e0e0e0;
   border-radius: 12px;
   margin-bottom: 0.75rem;
   transition: all 0.2s;
+  flex-wrap: wrap;
 }
 
 .address-item:hover {
@@ -1136,7 +1178,7 @@ const chartOptions: ChartOptions<'line'> = {
   gap: 1rem;
   align-items: center;
   flex: 1;
-  min-width: 0;
+  min-width: 200px;
 }
 
 .address-emoji {
@@ -1169,17 +1211,19 @@ const chartOptions: ChartOptions<'line'> = {
   display: flex;
   gap: 0.5rem;
   flex-shrink: 0;
+  flex-wrap: nowrap;
 }
 
 .use-btn {
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 0.9rem;
   background: #f5f5f5;
   border: 2px solid #e0e0e0;
   border-radius: 8px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .use-btn:hover {
