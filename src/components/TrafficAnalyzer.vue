@@ -498,11 +498,19 @@ const chartOptions: ChartOptions<'line'> = {
     </div>
 
     <div class="header-section sticky-header">
-      <h1>🚦 I Hate Traffic Jams</h1>
-      <p class="tagline">Stop wasting time in traffic. Find your perfect departure time!</p>
-      <button @click="showAddressBook = !showAddressBook" class="address-book-toggle">
-        📖 {{ showAddressBook ? 'Sluit' : 'Open' }} Adresboek
-      </button>
+      <div class="header-content">
+        <div class="header-text">
+          <h1>🚦 I Hate Traffic Jams</h1>
+          <p class="tagline">Find your perfect departure time</p>
+        </div>
+        <button 
+          @click="showAddressBook = !showAddressBook" 
+          class="address-book-toggle"
+          :title="showAddressBook ? 'Sluit adresboek' : 'Open adresboek'"
+        >
+          📖
+        </button>
+      </div>
     </div>
 
     <!-- Address Book Modal -->
@@ -515,26 +523,36 @@ const chartOptions: ChartOptions<'line'> = {
         
         <div class="add-address-form">
           <div class="form-row compact">
-            <button 
-              @click="showEmojiPicker = !showEmojiPicker" 
-              class="emoji-picker-btn"
-              title="Kies emoji"
-            >
-              {{ newAddressEmoji }}
-            </button>
-            <input
-              v-model="newAddressName"
-              type="text"
-              placeholder="Naam (bijv. Werk)"
-              class="address-input name-input"
-              maxlength="20"
-            />
+            <div class="emoji-picker-wrapper">
+              <label class="emoji-label">Emoji</label>
+              <button 
+                @click="showEmojiPicker = !showEmojiPicker" 
+                class="emoji-picker-btn"
+                title="Kies emoji"
+              >
+                {{ newAddressEmoji }} <span class="picker-arrow">▼</span>
+              </button>
+            </div>
+            <div class="name-wrapper">
+              <label class="input-label">Naam</label>
+              <input
+                v-model="newAddressName"
+                type="text"
+                placeholder="bijv. Werk"
+                class="address-input name-input"
+                maxlength="20"
+              />
+            </div>
+          </div>
+          
+          <div class="address-wrapper">
+            <label class="input-label">Adres</label>
             <input
               id="address-location"
               v-model="newAddressLocation"
               type="text"
-              placeholder="Adres"
-              class="address-input address-input-field"
+              placeholder="Type een adres..."
+              class="address-input address-input-full"
             />
           </div>
           
@@ -755,22 +773,23 @@ const chartOptions: ChartOptions<'line'> = {
 }
 
 .address-book-toggle {
-  margin-top: 1rem;
-  padding: 0.75rem 1.5rem;
-  background: white;
+  padding: 0.6rem 0.75rem;
+  background: rgba(255, 255, 255, 0.95);
   color: #ff6b6b;
   border: none;
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: 700;
+  border-radius: 10px;
+  font-size: 1.5rem;
   cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+  line-height: 1;
 }
 
 .address-book-toggle:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  transform: scale(1.1);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.25);
+  background: white;
 }
 
 /* Modal */
@@ -851,31 +870,76 @@ const chartOptions: ChartOptions<'line'> = {
   position: relative;
 }
 
+.emoji-picker-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.emoji-label {
+  font-size: 0.8rem;
+  color: #666;
+  font-weight: 600;
+}
+
+.input-label {
+  font-size: 0.8rem;
+  color: #666;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.name-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.address-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
 .emoji-picker-btn {
   background: #f5f5f5;
   border: 2px solid #e0e0e0;
   border-radius: 8px;
-  font-size: 2rem;
-  padding: 0.5rem;
+  font-size: 1.8rem;
+  padding: 0.5rem 0.75rem;
   cursor: pointer;
   transition: all 0.2s;
-  width: 60px;
+  width: 85px;
   height: 50px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  position: relative;
+}
+
+.picker-arrow {
+  font-size: 0.7rem;
+  color: #999;
+  position: absolute;
+  bottom: 4px;
+  right: 6px;
 }
 
 .emoji-picker-btn:hover {
   background: #e0e0e0;
-  transform: scale(1.05);
+  border-color: #42b983;
 }
 
 .emoji-picker-popup {
   position: absolute;
-  top: 65px;
+  top: 90px;
   left: 1rem;
   z-index: 10;
   background: white;
-  border: 2px solid #e0e0e0;
+  border: 2px solid #42b983;
   border-radius: 12px;
   padding: 0.75rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
@@ -907,11 +971,11 @@ const chartOptions: ChartOptions<'line'> = {
 }
 
 .name-input {
-  max-width: 150px;
+  flex: 1;
 }
 
-.address-input-field {
-  flex: 1;
+.address-input-full {
+  width: 100%;
 }
 
 .address-input {
@@ -1088,8 +1152,7 @@ const chartOptions: ChartOptions<'line'> = {
 }
 
 .header-section {
-  text-align: center;
-  padding: 1rem;
+  padding: 0.75rem 1.25rem;
   background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
   border-radius: 0;
   color: white;
@@ -1099,19 +1162,34 @@ const chartOptions: ChartOptions<'line'> = {
   margin-bottom: 0;
 }
 
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header-text {
+  flex: 1;
+  text-align: left;
+}
+
 h1 {
-  font-size: 2rem;
+  font-size: 1.6rem;
   color: white;
-  margin: 0 0 0.25rem 0;
+  margin: 0;
   font-weight: 900;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+  line-height: 1.2;
 }
 
 .tagline {
-  color: rgba(255, 255, 255, 0.95);
-  margin: 0 0 0.75rem 0;
-  font-size: 1rem;
-  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0.15rem 0 0 0;
+  font-size: 0.85rem;
+  font-weight: 400;
 }
 
 /* Recent searches */
@@ -1529,12 +1607,21 @@ input[type='text']::placeholder {
 }
 
 @media (max-width: 768px) {
+  .header-content {
+    gap: 0.75rem;
+  }
+  
   h1 {
-    font-size: 1.8rem;
+    font-size: 1.3rem;
   }
 
   .tagline {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
+  }
+  
+  .address-book-toggle {
+    font-size: 1.3rem;
+    padding: 0.5rem 0.65rem;
   }
 
   .form-container {
