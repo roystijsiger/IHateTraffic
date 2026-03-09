@@ -310,6 +310,55 @@ const useCurrentLocation = async () => {
   )
 }
 
+// Use current location for address book
+const useCurrentLocationForAddressBook = async () => {
+  if (!navigator.geolocation) {
+    alert('Geolocation wordt niet ondersteund door je browser')
+    return
+  }
+
+  try {
+    await loadGoogleMapsAPI()
+  } catch (error) {
+    alert('Google Maps kon niet geladen worden')
+    return
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const lat = position.coords.latitude
+      const lng = position.coords.longitude
+      
+      try {
+        const google = (window as any).google
+        if (!google || !google.maps || !google.maps.Geocoder) {
+          alert('Google Maps is niet beschikbaar')
+          return
+        }
+        
+        const geocoder = new google.maps.Geocoder()
+        geocoder.geocode(
+          { location: { lat, lng } },
+          (results: any[], status: string) => {
+            if (status === 'OK' && results[0]) {
+              newAddressLocation.value = results[0].formatted_address
+            } else {
+              alert('Kon adres niet ophalen van je locatie')
+            }
+          }
+        )
+      } catch (error) {
+        console.error('Geocoding error:', error)
+        alert('Er ging iets mis bij het ophalen van je adres')
+      }
+    },
+    (error) => {
+      console.error('Geolocation error:', error)
+      alert('Kon je locatie niet ophalen. Controleer of je toestemming hebt gegeven.')
+    }
+  )
+}
+
 // Address book functions
 const addToAddressBook = () => {
   if (!newAddressName.value.trim() || !newAddressLocation.value.trim()) {
@@ -567,13 +616,18 @@ const chartOptions: ChartOptions<'line'> = {
           
           <div class="address-wrapper">
             <label class="input-label">Adres</label>
-            <input
-              id="address-location"
-              v-model="newAddressLocation"
-              type="text"
-              placeholder="Type een adres..."
-              class="address-input address-input-full"
-            />
+            <div class="input-with-buttons">
+              <input
+                id="address-location"
+                v-model="newAddressLocation"
+                type="text"
+                placeholder="Type een adres..."
+                class="address-input address-input-full"
+              />
+              <button @click="useCurrentLocationForAddressBook" class="icon-btn" title="Huidige locatie">
+                📍
+              </button>
+            </div>
           </div>
           
           <div v-if="showEmojiPicker" class="emoji-picker-popup">
@@ -1218,7 +1272,8 @@ h1 {
   padding: 0.75rem 1rem;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin: 0.75rem 1.5rem;
+  margin: 1rem auto;
+  max-width: 900px;
 }
 
 .recent-searches h3 {
@@ -1251,13 +1306,14 @@ h1 {
 
 .form-container {
   background: white;
-  padding: 1.25rem;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  margin: 0 1.5rem 1rem 1.5rem;
+  gap: 1.25rem;
+  margin: 1rem auto;
+  max-width: 900px;
   position: relative;
   z-index: 1;
 }
@@ -1400,9 +1456,10 @@ input[type='text']::placeholder {
   position: relative;
   z-index: 1;
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin: 0 1.5rem 1.5rem 1.5rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  margin: 1rem auto;
+  max-width: 900px;
 }
 
 .spinner {
@@ -1463,9 +1520,10 @@ input[type='text']::placeholder {
 .error-message {
   background: #fee;
   border: 2px solid #f88;
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin: 0 1.5rem 1.5rem 1.5rem;
+  border-radius: 16px;
+  padding: 2rem;
+  margin: 1rem auto;
+  max-width: 900px;
   text-align: center;
   animation: fadeIn 0.5s;
   position: relative;
@@ -1498,7 +1556,8 @@ input[type='text']::placeholder {
   animation: fadeIn 0.5s;
   position: relative;
   z-index: 1;
-  margin: 0 1.5rem 1.5rem 1.5rem;
+  margin: 1rem auto;
+  max-width: 900px;
 }
 
 @keyframes fadeIn {
@@ -1515,7 +1574,7 @@ input[type='text']::placeholder {
 .best-times {
   background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
   color: white;
-  padding: 1.5rem;
+  padding: 2rem;
   border-radius: 16px;
   margin-bottom: 1.5rem;
   text-align: center;
@@ -1620,9 +1679,9 @@ input[type='text']::placeholder {
 
 .chart-container {
   background: white;
-  padding: 1.5rem;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   height: 350px;
 }
 
@@ -1646,6 +1705,17 @@ input[type='text']::placeholder {
 
   .form-container {
     padding: 1rem;
+    margin: 1rem 0.75rem;
+  }
+  
+  .recent-searches {
+    margin: 1rem 0.75rem;
+  }
+  
+  .loading,
+  .error-message,
+  .results {
+    margin: 1rem 0.75rem;
   }
   
   .form-row {
