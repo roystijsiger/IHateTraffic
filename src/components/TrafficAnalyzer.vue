@@ -51,6 +51,18 @@ const notificationsEnabled = ref<boolean>(false)
 const fcmToken = ref<string | null>(null)
 const alarmRepeat = ref<'once' | 'daily' | 'weekly' | 'weekdays'>('once')
 const activeAlarms = ref<number[]>([])
+const showAlarmManager = ref<boolean>(false)
+
+interface SavedAlarm {
+  time: string
+  repeat: 'once' | 'daily' | 'weekly' | 'weekdays'
+  from: string
+  to: string
+  day: string
+  createdAt: number
+}
+
+const savedAlarms = ref<SavedAlarm[]>([])
 
 const emojis = ['📍', '🏠', '💼', '🏢', '🏫', '🏥', '🏪', '🍕', '☕', '🏋️', '⛪', '🚉', '✈️', '🎭', '🎨', '❤️']
 
@@ -74,6 +86,20 @@ onMounted(async () => {
   
   const recent = localStorage.getItem('recentSearches')
   if (recent) recentSearches.value = JSON.parse(recent)
+  
+  // Load saved alarms
+  const alarms = localStorage.getItem('savedAlarms')
+  if (alarms) {
+    savedAlarms.value = JSON.parse(alarms)
+    
+    // Show notification if there are active alarms
+    if (savedAlarms.value.length > 0) {
+      showLocationStatus.value = true
+      locationStatus.value = `⏰ Je hebt ${savedAlarms.value.length} actieve alarm${savedAlarms.value.length > 1 ? 's' : ''}`
+      locationStatusType.value = 'info'
+      setTimeout(() => showLocationStatus.value = false, 5000)
+    }
+  }
   
   // Check notification permission status
   if ('Notification' in window) {
@@ -563,6 +589,18 @@ const setAlarm = async (time: string) => {
   showAlarmSet.value = true
   setTimeout(() => showAlarmSet.value = false, 3000)
   
+  // Save alarm to localStorage
+  const newAlarm: SavedAlarm = {
+    time: time,
+    repeat: alarmRepeat.value,
+    from: fromLocation.value,
+    to: toLocation.value,
+    day: selectedDay.value,
+    createdAt: Date.now()
+  }
+  savedAlarms.value.push(newAlarm)
+  localStorage.setItem('savedAlarms', JSON.stringify(savedAlarms.value))
+  
   // Try Firebase Cloud Messaging (optioneel)
   if (notificationsEnabled.value) {
     try {
@@ -698,6 +736,30 @@ const cancelAlarms = () => {
   locationStatus.value = '❌ Alarm cancelled'
   locationStatusType.value = 'error'
   setTimeout(() => showLocationStatus.value = false, 3000)
+}
+
+const removeAlarm = (index: number) => {
+  savedAlarms.value.splice(index, 1)
+  localStorage.setItem('savedAlarms', JSON.stringify(savedAlarms.value))
+  
+  showLocationStatus.value = true
+  locationStatus.value = '❌ Alarm verwijderd'
+  locationStatusType.value = 'success'
+  setTimeout(() => showLocationStatus.value = false, 3000)
+}
+
+const clearAllAlarms = () => {
+  if (confirm(`Weet je zeker dat je alle ${savedAlarms.value.length} alarm(s) wilt verwijderen?`)) {
+    savedAlarms.value = []
+    localStorage.removeItem('savedAlarms')
+    cancelAlarms()
+    showAlarmManager.value = false
+    
+    showLocationStatus.value = true
+    locationStatus.value = '✅ Alle alarmen verwijderd'
+    locationStatusType.value = 'success'
+    setTimeout(() => showLocationStatus.value = false, 3000)
+  }
 }
 
 const testNotification = async () => {
@@ -1061,6 +1123,49 @@ const chartOptions: ChartOptions<'line'> = {
       <p>{{ currentLoadingMessage }}</p>
     </div>
 
+    <!-- Alarm manager modal -->
+    <div v-if="showAlarmManager" class="modal-overlay" @click="showAlarmManager = false">
+      <div class="modal-content alarm-manager-modal" @click.stop>
+        <h3>⏰ Actieve Alarmen</h3>
+        <p class="modal-subtitle">Beheer je ingestelde verkeer alarmen</p>
+        
+        <div v-if="savedAlarms.length === 0" class="no-alarms">
+          <span class="no-alarms-icon">🔔</span>
+          <p>Geen actieve alarmen</p>
+          <small>Stel een alarm in na een verkeersanalyse</small>
+        </div>
+        
+        <div v-else class="alarms-list">
+          <div v-for="(alarm, index) in savedAlarms" :key="index" class="alarm-item">
+            <div class="alarm-info">
+              <div class="alarm-time">⏰ {{ alarm.time }}</div>
+              <div class="alarm-route">📍 {{ alarm.from.split(',')[0] }} → {{ alarm.to.split(',')[0] }}</div>
+              <div class="alarm-meta">
+                <span class="alarm-day">📅 {{ alarm.day.charAt(0).toUpperCase() + alarm.day.slice(1) }}</span>
+                <span class="alarm-repeat">
+                  {{ alarm.repeat === 'once' ? '🔔 Eenmalig' : 
+                     alarm.repeat === 'daily' ? '📅 Dagelijks' : 
+                     alarm.repeat === 'weekly' ? '🔄 Wekelijks' : '💼 Werkdagen' }}
+                </span>
+              </div>
+            </div>
+            <button @click="removeAlarm(index)" class="remove-alarm-btn" title="Verwijder alarm">
+              🗑️
+            </button>
+          </div>
+        </div>
+        
+        <div class="alarm-manager-actions">
+          <button v-if="savedAlarms.length > 0" @click="clearAllAlarms" class="clear-all-btn">
+            🗑️ Verwijder alle alarmen
+          </button>
+          <button @click="showAlarmManager = false" class="modal-close-btn">
+            Sluiten
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Alarm selector dialog -->
     <div v-if="showAlarmSelector" class="modal-overlay" @click="showAlarmSelector = false">
       <div class="modal-content" @click.stop>
@@ -1128,10 +1233,10 @@ const chartOptions: ChartOptions<'line'> = {
     </div>
     
     <!-- Active alarm indicator -->
-    <div v-if="alarmTime && activeAlarms.length > 0" class="active-alarm-badge" @click="cancelAlarms">
+    <div v-if="savedAlarms.length > 0" class="active-alarm-badge" @click="showAlarmManager = true">
       <span class="alarm-icon">⏰</span>
-      <span class="alarm-text">{{ alarmTime }}</span>
-      <span class="alarm-cancel">✕</span>
+      <span class="alarm-text">{{ savedAlarms.length }} alarm{{ savedAlarms.length > 1 ? 's' : '' }}</span>
+      <span class="alarm-view">›</span>
     </div>
     
     <!-- Location status notification -->
@@ -1409,6 +1514,135 @@ const chartOptions: ChartOptions<'line'> = {
 
 .active-alarm-badge:hover .alarm-cancel {
   opacity: 1;
+}
+
+.alarm-view {
+  font-size: 1.5rem;
+  font-weight: bold;
+  opacity: 0.8;
+}
+
+.alarm-manager-modal {
+  max-width: 600px;
+}
+
+.no-alarms {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #999;
+}
+
+.no-alarms-icon {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.no-alarms p {
+  margin: 0.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.no-alarms small {
+  color: #bbb;
+}
+
+.alarms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.alarm-item {
+  background: #f8f8f8;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.3s;
+}
+
+.alarm-item:hover {
+  border-color: #ff6b6b;
+  transform: translateX(4px);
+}
+
+.alarm-info {
+  flex: 1;
+}
+
+.alarm-time {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #ff6b6b;
+  margin-bottom: 0.5rem;
+}
+
+.alarm-route {
+  font-size: 0.95rem;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.alarm-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.alarm-day, .alarm-repeat {
+  background: white;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+}
+
+.remove-alarm-btn {
+  background: #fee;
+  border: 2px solid #fcc;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.remove-alarm-btn:hover {
+  background: #ff6b6b;
+  border-color: #ff6b6b;
+  transform: scale(1.1);
+}
+
+.alarm-manager-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.clear-all-btn {
+  width: 100%;
+  background: #fee;
+  border: 2px solid #fcc;
+  padding: 0.85rem;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #c33;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.clear-all-btn:hover {
+  background: #fcc;
+  border-color: #faa;
+  color: #a11;
 }
 
 @keyframes alarmPulse {
