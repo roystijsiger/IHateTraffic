@@ -17,6 +17,7 @@ Een Vue 3 applicatie om de beste vertrektijd te vinden op basis van verwachte re
 - **Vite** voor snelle development
 - **Pinia** voor state management
 
+
 ## 🚀 Quick Start
 
 ### Project Setup
