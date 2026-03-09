@@ -13,6 +13,7 @@ import {
   type ChartOptions
 } from 'chart.js'
 import { getTravelTime, createDepartureTime } from '@/services/googleMapsService'
+import { requestNotificationPermission, scheduleAlarmNotification, onMessageListener } from '@/services/firebaseService'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
@@ -46,6 +47,8 @@ const newAddressEmoji = ref<string>('📍')
 const locationStatus = ref<string>('')
 const showLocationStatus = ref<boolean>(false)
 const locationStatusType = ref<'success' | 'error' | 'info'>('info')
+const notificationsEnabled = ref<boolean>(false)
+const fcmToken = ref<string | null>(null)
 
 const emojis = ['📍', '🏠', '💼', '🏢', '🏫', '🏥', '🏪', '🍕', '☕', '🏋️', '⛪', '🚉', '✈️', '🎭', '🎨', '❤️']
 
@@ -63,12 +66,31 @@ const loadingMessages = [
 const currentLoadingMessage = ref<string>(loadingMessages[0] || 'Loading...')
 
 // Load saved data from localStorage
-onMounted(() => {
+onMounted(async () => {
   const saved = localStorage.getItem('addressBook')
   if (saved) addressBook.value = JSON.parse(saved)
   
   const recent = localStorage.getItem('recentSearches')
   if (recent) recentSearches.value = JSON.parse(recent)
+  
+  // Check notification permission status
+  if ('Notification' in window) {
+    notificationsEnabled.value = Notification.permission === 'granted'
+  }
+  
+  // Listen for foreground messages
+  try {
+    onMessageListener().then((payload) => {
+      console.log('Received foreground message:', payload)
+      // Show in-app notification
+      showLocationStatus.value = true
+      locationStatus.value = payload.notification?.body || 'New notification'
+      locationStatusType.value = 'info'
+      setTimeout(() => showLocationStatus.value = false, 5000)
+    })
+  } catch (error) {
+    console.error('Error setting up message listener:', error)
+  }
 })
 
 // Load Google Maps API dynamically
@@ -512,11 +534,31 @@ const openAlarmSelector = () => {
   showAlarmSelector.value = true
 }
 
-const setAlarm = (time: string) => {
+const setAlarm = async (time: string) => {
   alarmTime.value = time
   showAlarmSelector.value = false
   showAlarmSet.value = true
   setTimeout(() => showAlarmSet.value = false, 3000)
+  
+  // Request notification permission if not granted
+  if (!notificationsEnabled.value && 'Notification' in window) {
+    const token = await requestNotificationPermission()
+    if (token) {
+      fcmToken.value = token
+      notificationsEnabled.value = true
+      console.log('Notifications enabled with token:', token)
+    } else {
+      console.log('Notification permission denied')
+    }
+  }
+  
+  // Schedule Firebase notification
+  try {
+    await scheduleAlarmNotification(time)
+    console.log('Alarm notification scheduled for', time)
+  } catch (error) {
+    console.error('Error scheduling notification:', error)
+  }
   
   // Calculate time until alarm
   const [hours, minutes] = time.split(':').map(Number)
@@ -530,6 +572,7 @@ const setAlarm = (time: string) => {
   
   const msUntilAlarm = alarmDate.getTime() - now.getTime()
   
+  // Fallback alert
   setTimeout(() => {
     alert('⏰ Time to leave! Beat the traffic!')
   }, msUntilAlarm)
@@ -538,10 +581,16 @@ const setAlarm = (time: string) => {
 const shareResults = () => {
   const bestTime = bestTimes.value[0] || 'unknown'
   const minDuration = Math.min(...travelTimes.value.map((t) => t.duration))
+  const avgDuration = averageDuration.value
+  const dayCapitalized = selectedDay.value.charAt(0).toUpperCase() + selectedDay.value.slice(1)
+  
   const text = `🚦 I found the best time to beat traffic!\n\n` +
     `📍 ${fromLocation.value} → ${toLocation.value}\n` +
+    `📅 Day: ${dayCapitalized}\n` +
     `⏰ Best departure: ${bestTime}\n` +
-    `⚡ Travel time: ${minDuration} minutes\n\n` +
+    `⚡ Travel time: ${minDuration} minutes\n` +
+    `📊 Average time: ${avgDuration} minutes\n` +
+    `💡 Save ${avgDuration - minDuration} minutes!\n\n` +
     `Check it out: ${window.location.href}`
   
   if (navigator.share) {
