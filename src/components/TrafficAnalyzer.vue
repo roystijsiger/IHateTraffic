@@ -49,6 +49,8 @@ const showLocationStatus = ref<boolean>(false)
 const locationStatusType = ref<'success' | 'error' | 'info'>('info')
 const notificationsEnabled = ref<boolean>(false)
 const fcmToken = ref<string | null>(null)
+const alarmRepeat = ref<'once' | 'daily' | 'weekly' | 'weekdays'>('once')
+const activeAlarms = ref<number[]>([])
 
 const emojis = ['📍', '🏠', '💼', '🏢', '🏫', '🏥', '🏪', '🍕', '☕', '🏋️', '⛪', '🚉', '✈️', '🎭', '🎨', '❤️']
 
@@ -537,45 +539,193 @@ const openAlarmSelector = () => {
 const setAlarm = async (time: string) => {
   alarmTime.value = time
   showAlarmSelector.value = false
+  
+  // Request notification permission FIRST
+  if ('Notification' in window && Notification.permission === 'default') {
+    const permission = await Notification.requestPermission()
+    notificationsEnabled.value = permission === 'granted'
+    
+    if (permission === 'granted') {
+      showLocationStatus.value = true
+      locationStatus.value = '✅ Notificaties ingeschakeld!'
+      locationStatusType.value = 'success'
+      setTimeout(() => showLocationStatus.value = false, 3000)
+    } else {
+      showLocationStatus.value = true
+      locationStatus.value = '⚠️ Notificaties geblokkeerd - je krijgt alleen een alert'
+      locationStatusType.value = 'error'
+      setTimeout(() => showLocationStatus.value = false, 5000)
+    }
+  } else if ('Notification' in window && Notification.permission === 'granted') {
+    notificationsEnabled.value = true
+  }
+  
   showAlarmSet.value = true
   setTimeout(() => showAlarmSet.value = false, 3000)
   
-  // Request notification permission if not granted
-  if (!notificationsEnabled.value && 'Notification' in window) {
-    const token = await requestNotificationPermission()
-    if (token) {
-      fcmToken.value = token
-      notificationsEnabled.value = true
-      console.log('Notifications enabled with token:', token)
-    } else {
-      console.log('Notification permission denied')
+  // Try Firebase Cloud Messaging (optioneel)
+  if (notificationsEnabled.value) {
+    try {
+      const token = await requestNotificationPermission()
+      if (token) {
+        fcmToken.value = token
+        console.log('FCM Token:', token)
+      }
+    } catch (error) {
+      console.log('FCM not available, using browser notifications:', error)
     }
   }
   
-  // Schedule Firebase notification
-  try {
-    await scheduleAlarmNotification(time)
-    console.log('Alarm notification scheduled for', time)
-  } catch (error) {
-    console.error('Error scheduling notification:', error)
-  }
+  // Schedule alarm based on repeat setting
+  scheduleAlarmWithRepeat(time)
+}
+
+const scheduleAlarmWithRepeat = (time: string) => {
+  // Clear existing alarms
+  activeAlarms.value.forEach(id => clearTimeout(id))
+  activeAlarms.value = []
   
-  // Calculate time until alarm
   const [hours, minutes] = time.split(':').map(Number)
   const now = new Date()
-  const alarmDate = new Date()
-  alarmDate.setHours(hours || 0, minutes || 0, 0, 0)
   
-  if (alarmDate < now) {
-    alarmDate.setDate(alarmDate.getDate() + 1)
+  // Get the day of week from selectedDay
+  const dayMap: { [key: string]: number } = {
+    'zondag': 0,
+    'maandag': 1,
+    'dinsdag': 2,
+    'woensdag': 3,
+    'donderdag': 4,
+    'vrijdag': 5,
+    'zaterdag': 6
+  }
+  const targetDayOfWeek = dayMap[selectedDay.value] || 1
+  
+  const scheduleNext = () => {
+    const alarmDate = new Date()
+    alarmDate.setHours(hours || 0, minutes || 0, 0, 0)
+    
+    // If time has passed today, schedule for next occurrence
+    if (alarmDate <= now) {
+      if (alarmRepeat.value === 'once') {
+        // Next day
+        alarmDate.setDate(alarmDate.getDate() + 1)
+      } else if (alarmRepeat.value === 'daily') {
+        // Next day
+        alarmDate.setDate(alarmDate.getDate() + 1)
+      } else if (alarmRepeat.value === 'weekly') {
+        // Next week, same day (7 days later)
+        alarmDate.setDate(alarmDate.getDate() + 7)
+      } else if (alarmRepeat.value === 'weekdays') {
+        // Skip to next weekday
+        do {
+          alarmDate.setDate(alarmDate.getDate() + 1)
+        } while (alarmDate.getDay() === 0 || alarmDate.getDay() === 6)
+      }
+    } else {
+      // Time hasn't passed yet today
+      if (alarmRepeat.value === 'weekly') {
+        // Make sure it's on the correct day of week
+        while (alarmDate.getDay() !== targetDayOfWeek) {
+          alarmDate.setDate(alarmDate.getDate() + 1)
+        }
+      }
+    }
+    
+    // For weekdays, ensure it's not weekend
+    if (alarmRepeat.value === 'weekdays') {
+      while (alarmDate.getDay() === 0 || alarmDate.getDay() === 6) {
+        alarmDate.setDate(alarmDate.getDate() + 1)
+      }
+    }
+    
+    const msUntilAlarm = alarmDate.getTime() - Date.now()
+    
+    console.log('⏰ Scheduling alarm:', {
+      time: time,
+      scheduledFor: alarmDate.toLocaleString(),
+      msUntilAlarm: msUntilAlarm,
+      notificationPermission: Notification.permission,
+      repeat: alarmRepeat.value
+    })
+    
+    const timeoutId = setTimeout(() => {
+      console.log('🔔 Alarm firing now!')
+      
+      // Show notification
+      if (Notification.permission === 'granted') {
+        console.log('📢 Showing notification...')
+        new Notification('⏰ Time to leave!', {
+          body: `Beat the traffic! Depart at ${time} for ${fromLocation.value} → ${toLocation.value}`,
+          icon: '/icon.png',
+          badge: '/badge.png',
+          vibrate: [200, 100, 200],
+          tag: 'traffic-alarm',
+          requireInteraction: true
+        })
+      } else {
+        console.log('❌ Notification permission not granted:', Notification.permission)
+      }
+      
+      // Fallback alert
+      alert(`⏰ Time to leave! Beat the traffic!\n${fromLocation.value} → ${toLocation.value}`)
+      
+      // Schedule next alarm if repeating
+      if (alarmRepeat.value !== 'once') {
+        scheduleNext()
+      }
+    }, msUntilAlarm)
+    
+    activeAlarms.value.push(timeoutId)
+    
+    // Log scheduled time
+    const repeatText = {
+      once: 'one-time',
+      daily: 'daily',
+      weekly: 'weekly',
+      weekdays: 'on weekdays'
+    }[alarmRepeat.value]
+    
+    console.log(`Alarm scheduled for ${alarmDate.toLocaleString()} (${repeatText})`)
   }
   
-  const msUntilAlarm = alarmDate.getTime() - now.getTime()
-  
-  // Fallback alert
-  setTimeout(() => {
-    alert('⏰ Time to leave! Beat the traffic!')
-  }, msUntilAlarm)
+  scheduleNext()
+}
+
+const cancelAlarms = () => {
+  activeAlarms.value.forEach(id => clearTimeout(id))
+  activeAlarms.value = []
+  alarmTime.value = ''
+  showLocationStatus.value = true
+  locationStatus.value = '❌ Alarm cancelled'
+  locationStatusType.value = 'error'
+  setTimeout(() => showLocationStatus.value = false, 3000)
+}
+
+const testNotification = async () => {
+  if ('Notification' in window) {
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission()
+      if (permission === 'granted') {
+        new Notification('🎉 Test succesvol!', {
+          body: 'Notificaties werken! Je krijgt een melding op je alarm tijd.',
+          icon: '/icon.png',
+          vibrate: [200, 100, 200]
+        })
+      } else {
+        alert('❌ Notificaties geblokkeerd. Check je browser instellingen.')
+      }
+    } else if (Notification.permission === 'granted') {
+      new Notification('🎉 Test succesvol!', {
+        body: 'Notificaties werken! Je krijgt een melding op je alarm tijd.',
+        icon: '/icon.png',
+        vibrate: [200, 100, 200]
+      })
+    } else {
+      alert('❌ Notificaties zijn geblokkeerd. Ga naar je browser instellingen om dit te wijzigen.')
+    }
+  } else {
+    alert('❌ Je browser ondersteunt geen notificaties.')
+  }
 }
 
 const shareResults = () => {
@@ -902,6 +1052,11 @@ const chartOptions: ChartOptions<'line'> = {
       <button @click="analyzeTravelTimes" :disabled="isLoading" class="analyze-btn">
         {{ isLoading ? currentLoadingMessage : '🚀 Beat the traffic!' }}
       </button>
+      
+      <!-- Test notification button -->
+      <button @click="testNotification" class="test-notification-btn" title="Test of notificaties werken">
+        🔔 Test notificatie
+      </button>
     </div>
 
     <div v-if="isLoading" class="loading">
@@ -914,6 +1069,42 @@ const chartOptions: ChartOptions<'line'> = {
       <div class="modal-content" @click.stop>
         <h3>⏰ Selecteer alarm tijd</h3>
         <p class="modal-subtitle">Kies voor welk tijdstip je een alarm wilt instellen:</p>
+        
+        <!-- Repeat options -->
+        <div class="repeat-options">
+          <label class="repeat-label">Herhaling:</label>
+          <div class="repeat-buttons">
+            <button 
+              @click="alarmRepeat = 'once'"
+              class="repeat-btn"
+              :class="{ active: alarmRepeat === 'once' }"
+            >
+              🔔 Eenmalig
+            </button>
+            <button 
+              @click="alarmRepeat = 'daily'"
+              class="repeat-btn"
+              :class="{ active: alarmRepeat === 'daily' }"
+            >
+              📅 Dagelijks
+            </button>
+            <button 
+              @click="alarmRepeat = 'weekly'"
+              class="repeat-btn"
+              :class="{ active: alarmRepeat === 'weekly' }"
+            >
+              🔄 Wekelijks ({{ selectedDay }})
+            </button>
+            <button 
+              @click="alarmRepeat = 'weekdays'"
+              class="repeat-btn"
+              :class="{ active: alarmRepeat === 'weekdays' }"
+            >
+              💼 Werkdagen (ma-vr)
+            </button>
+          </div>
+        </div>
+        
         <div class="time-selection-grid">
           <button 
             v-for="time in travelTimes" 
@@ -934,6 +1125,16 @@ const chartOptions: ChartOptions<'line'> = {
     <!-- Alarm set notification -->
     <div v-if="showAlarmSet" class="alarm-notification">
       ⏰ Alarm set for {{ alarmTime }}!
+      <span v-if="alarmRepeat !== 'once'" class="repeat-indicator">
+        {{ alarmRepeat === 'daily' ? '(dagelijks)' : alarmRepeat === 'weekly' ? '(wekelijks)' : '(werkdagen)' }}
+      </span>
+    </div>
+    
+    <!-- Active alarm indicator -->
+    <div v-if="alarmTime && activeAlarms.length > 0" class="active-alarm-badge" @click="cancelAlarms">
+      <span class="alarm-icon">⏰</span>
+      <span class="alarm-text">{{ alarmTime }}</span>
+      <span class="alarm-cancel">✕</span>
     </div>
     
     <!-- Location status notification -->
@@ -1115,9 +1316,126 @@ const chartOptions: ChartOptions<'line'> = {
 }
 
 .modal-subtitle {
-  margin: 0 0 1.5rem 0;
+  margin: 0 0 1rem 0;
   color: #666;
   font-size: 0.95rem;
+}
+
+.repeat-options {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #f8f8f8;
+  border-radius: 12px;
+}
+
+.repeat-label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.75rem;
+}
+
+.repeat-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.repeat-btn {
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 0.6rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.repeat-btn:hover {
+  border-color: #ff6b6b;
+  transform: translateY(-1px);
+}
+
+.repeat-btn.active {
+  background: #ff6b6b;
+  color: white;
+  border-color: #ff6b6b;
+  font-weight: 600;
+}
+
+.repeat-indicator {
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
+  opacity: 0.8;
+}
+
+.active-alarm-badge {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%);
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 50px;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 4px 20px rgba(255, 107, 107, 0.4);
+  cursor: pointer;
+  transition: all 0.3s;
+  z-index: 999;
+  animation: alarmPulse 2s ease-in-out infinite;
+}
+
+.active-alarm-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 24px rgba(255, 107, 107, 0.5);
+}
+
+.alarm-icon {
+  font-size: 1.3rem;
+  animation: ring 1.5s ease-in-out infinite;
+}
+
+.alarm-text {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.alarm-cancel {
+  font-size: 1.2rem;
+  opacity: 0.8;
+  transition: opacity 0.3s;
+}
+
+.active-alarm-badge:hover .alarm-cancel {
+  opacity: 1;
+}
+
+@keyframes alarmPulse {
+  0%, 100% {
+    box-shadow: 0 4px 20px rgba(255, 107, 107, 0.4);
+  }
+  50% {
+    box-shadow: 0 4px 30px rgba(255, 107, 107, 0.6);
+  }
+}
+
+@keyframes ring {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  10%, 30% {
+    transform: rotate(-10deg);
+  }
+  20%, 40% {
+    transform: rotate(10deg);
+  }
+  50% {
+    transform: rotate(0deg);
+  }
 }
 
 .time-selection-grid {
@@ -1760,6 +2078,28 @@ input[type='text']::placeholder {
 .analyze-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.test-notification-btn {
+  padding: 0.7rem 1.5rem;
+  background: white;
+  color: #ff6b6b;
+  border: 2px solid #ff6b6b;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  white-space: nowrap;
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+.test-notification-btn:hover {
+  background: #ff6b6b;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
 }
 
 .loading {
