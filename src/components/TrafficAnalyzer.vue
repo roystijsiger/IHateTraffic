@@ -947,9 +947,19 @@ const chartOptions: ChartOptions<'line'> = {
             📱 Share
           </button>
         </div>
+        
+        <!-- Scroll indicator -->
+        <div class="scroll-indicator">
+          <span class="scroll-text">📊 Bekijk de grafiek hieronder</span>
+          <span class="scroll-arrow">↓</span>
+        </div>
       </div>
 
       <div class="chart-container">
+        <div class="chart-header">
+          <h3>📈 Reistijd Analyse</h3>
+          <p class="chart-description">Gedetailleerd overzicht van reistijden gedurende de dag</p>
+        </div>
         <Line :data="chartData" :options="chartOptions" />
       </div>
     </div>
@@ -1964,12 +1974,69 @@ input[type='text']::placeholder {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
+.scroll-indicator {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 2px dashed rgba(255, 107, 107, 0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.scroll-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #ff6b6b;
+}
+
+.scroll-arrow {
+  font-size: 1.5rem;
+  animation: bounce 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(8px);
+  }
+}
+
 .chart-container {
   background: white;
   padding: 2rem;
   border-radius: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  height: 350px;
+  margin-top: 1.5rem;
+}
+
+.chart-header {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.chart-header h3 {
+  margin: 0 0 0.5rem 0;
+  color: #ff6b6b;
+  font-size: 1.5rem;
+}
+
+.chart-description {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
 }
 
 @media (max-width: 768px) {
