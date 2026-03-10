@@ -1,15 +1,15 @@
 /**
- * Google Maps Directions API Service met caching
- * Documentatie: https://developers.google.com/maps/documentation/javascript/directions
+ * Google Maps Directions API Service with caching
+ * Documentation: https://developers.google.com/maps/documentation/javascript/directions
  */
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 const CACHE_KEY_PREFIX = 'traffic_cache_'
-const CACHE_EXPIRY_DAYS = 30 // Cache vervalt na 30 dagen
+const CACHE_EXPIRY_DAYS = 30 // Cache expires after 30 days
 
 export interface TravelTimeResult {
-  duration: number // in minutes (zonder verkeer)
-  durationInTraffic: number // in minutes (met verkeer)
+  duration: number // in minutes (without traffic)
+  durationInTraffic: number // in minutes (with traffic)
   distance: number // in meters
 }
 
@@ -19,7 +19,7 @@ interface CachedResult {
 }
 
 /**
- * Genereer cache key voor een specifieke route en tijd
+ * Generate cache key for a specific route and time
  */
 function getCacheKey(origin: string, destination: string, targetTime: Date, mode: 'departure' | 'arrival'): string {
   const timeKey = `${targetTime.getDay()}-${targetTime.getHours()}-${targetTime.getMinutes()}-${mode}`
@@ -27,7 +27,7 @@ function getCacheKey(origin: string, destination: string, targetTime: Date, mode
 }
 
 /**
- * Haal data uit cache als deze nog geldig is
+ * Get data from cache if still valid
  */
 function getFromCache(cacheKey: string): TravelTimeResult | null {
   try {
@@ -50,7 +50,7 @@ function getFromCache(cacheKey: string): TravelTimeResult | null {
 }
 
 /**
- * Sla data op in cache
+ * Save data to cache
  */
 function saveToCache(cacheKey: string, data: TravelTimeResult): void {
   try {
@@ -59,15 +59,15 @@ function saveToCache(cacheKey: string, data: TravelTimeResult): void {
       timestamp: Date.now()
     }
     localStorage.setItem(cacheKey, JSON.stringify(cached))
-    console.log(`💾 Opgeslagen in cache: ${cacheKey}`)
+    console.log(`💾 Saved to cache: ${cacheKey}`)
   } catch (error) {
-    console.warn('Cache opslaan mislukt:', error)
+    console.warn('Cache save failed:', error)
   }
 }
 
 /**
- * Haalt reistijd op via Google Maps Directions Service (client-side)
- * Met caching om API requests te besparen
+ * Get travel time via Google Maps Directions Service (client-side)
+ * With caching to save API requests
  */
 export async function getTravelTime(
   origin: string,
@@ -77,7 +77,7 @@ export async function getTravelTime(
   mode: 'departure' | 'arrival' = 'departure'
 ): Promise<TravelTimeResult> {
   if (!API_KEY || API_KEY === 'your_api_key_here') {
-    throw new Error('Google Maps API key niet geconfigureerd. Zie GOOGLE_MAPS_SETUP.md')
+    throw new Error('Google Maps API key not configured. See GOOGLE_MAPS_SETUP.md')
   }
 
   // Check cache eerst
@@ -108,12 +108,12 @@ export async function getTravelTime(
     const result = await directionsService.route(request)
 
     if (result.status !== 'OK') {
-      throw new Error(`Route niet gevonden: ${result.status}`)
+      throw new Error(`Route not found: ${result.status}`)
     }
 
     const leg = result.routes[0]?.legs[0]
     if (!leg) {
-      throw new Error('Geen route informatie beschikbaar')
+      throw new Error('No route information available')
     }
 
     const travelTimeResult: TravelTimeResult = {
@@ -124,7 +124,7 @@ export async function getTravelTime(
       distance: leg.distance?.value || 0
     }
 
-    // Sla op in cache
+    // Save to cache
     saveToCache(cacheKey, travelTimeResult)
 
     return travelTimeResult
@@ -135,17 +135,17 @@ export async function getTravelTime(
 }
 
 /**
- * Helper functie om een Date object te maken voor een specifieke dag en tijd
+ * Helper function to create a Date object for a specific day and time
  */
 export function createDepartureTime(dayName: string, timeString: string): Date {
   const dayMap: { [key: string]: number } = {
-    zondag: 0,
-    maandag: 1,
-    dinsdag: 2,
-    woensdag: 3,
-    donderdag: 4,
-    vrijdag: 5,
-    zaterdag: 6
+    sunday: 0,
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6
   }
 
   const targetDay = dayMap[dayName.toLowerCase()] ?? 0
@@ -162,16 +162,16 @@ export function createDepartureTime(dayName: string, timeString: string): Date {
   let daysToAdd = targetDay - currentDay
 
   if (daysToAdd < 0) {
-    // Target day is eerder in de week, neem volgende week
+    // Target day is earlier in the week, take next week
     daysToAdd += 7
   } else if (daysToAdd === 0) {
-    // Zelfde dag: alleen volgende week als tijd al geweest is
+    // Same day: only next week if time has already passed
     if (now.getTime() > result.getTime()) {
       daysToAdd = 7
     }
-    // Anders: gebruik VANDAAG (daysToAdd blijft 0)
+    // Otherwise: use TODAY (daysToAdd remains 0)
   }
-  // Als daysToAdd > 0: gebruik die dag deze week
+  // If daysToAdd > 0: use that day this week
 
   result.setDate(result.getDate() + daysToAdd)
 

@@ -19,10 +19,10 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 
-// Get current day name in Dutch
+// Get current day name in English
 const getCurrentDayName = (): string => {
-  const days = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag']
-  return days[new Date().getDay()] || 'maandag'
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+  return days[new Date().getDay()] || 'monday'
 }
 
 // Form inputs
@@ -75,7 +75,7 @@ const savedAlarms = ref<SavedAlarm[]>([])
 
 const emojis = ['📍', '🏠', '💼', '🏢', '🏫', '🏥', '🏪', '🍕', '☕', '🏋️', '⛪', '🚉', '✈️', '🎭', '🎨', '❤️']
 
-const days = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag', 'zondag']
+const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
 // Loading messages
 const loadingMessages = [
@@ -122,7 +122,7 @@ onMounted(async () => {
     // Show notification if there are active alarms
     if (savedAlarms.value.length > 0) {
       showLocationStatus.value = true
-      locationStatus.value = `⏰ Je hebt ${savedAlarms.value.length} actieve alarm${savedAlarms.value.length > 1 ? 's' : ''}`
+      locationStatus.value = `⏰ You have ${savedAlarms.value.length} active alarm${savedAlarms.value.length > 1 ? 's' : ''}`
       locationStatusType.value = 'info'
       setTimeout(() => showLocationStatus.value = false, 5000)
     }
@@ -147,7 +147,7 @@ onMounted(async () => {
     deferredPrompt.value = null
     
     showLocationStatus.value = true
-    locationStatus.value = '✅ App geïnstalleerd! Je krijgt nu push notificaties.'
+    locationStatus.value = '✅ App installed! You will now receive push notifications.'
     locationStatusType.value = 'success'
     setTimeout(() => showLocationStatus.value = false, 5000)
   })
@@ -313,7 +313,7 @@ const fetchTravelTime = async (
 // Fetch all travel times
 const analyzeTravelTimes = async () => {
   if (!fromLocation.value.trim() || !toLocation.value.trim()) {
-    alert('Vul beide locaties in!')
+    alert('Please enter both locations!')
     return
   }
 
@@ -330,7 +330,7 @@ const analyzeTravelTimes = async () => {
 
   try {
     if (timeMode.value === 'departure') {
-      // Normale modus: analyseer verschillende vertrektijden
+      // Normal mode: analyze different departure times
       const timeSlots = generateTimeSlots(startTime.value, endTime.value)
 
       for (const slot of timeSlots) {
@@ -343,22 +343,22 @@ const analyzeTravelTimes = async () => {
         travelTimes.value.push({ time: slot, duration })
       }
     } else {
-      // Aankomst modus: Ik wil tussen startTime-endTime AANKOMEN
-      // Strategie: sample traffic in dat bereik, reken backwards
+      // Arrival mode: I want to ARRIVE between startTime-endTime
+      // Strategy: sample traffic in that range, calculate backwards
       
-      // Parse gewenste aankomsttijd bereik
+      // Parse desired arrival time range
       const arrivalStartParts = startTime.value.split(':').map(Number)
       const arrivalEndParts = endTime.value.split(':').map(Number)
       const arrivalStartMin = (arrivalStartParts[0] || 0) * 60 + (arrivalStartParts[1] || 0)
       const arrivalEndMin = (arrivalEndParts[0] || 0) * 60 + (arrivalEndParts[1] || 0)
       
-      // Sample reistijd bij midden van gewenste aankomsttijd
+      // Sample travel time at middle of desired arrival time
       const midArrivalMin = Math.floor((arrivalStartMin + arrivalEndMin) / 2)
       const midH = Math.floor(midArrivalMin / 60)
       const midM = midArrivalMin % 60
       const sampleTime = `${String(midH).padStart(2, '0')}:${String(midM).padStart(2, '0')}`
       
-      // Haal reistijd op voor sample tijd
+      // Get travel time for sample time
       const sampleDuration = await fetchTravelTime(
         selectedDay.value,
         sampleTime,
@@ -366,15 +366,15 @@ const analyzeTravelTimes = async () => {
         toLocation.value
       )
       
-      // Reken backwards: eerste mogelijke vertrektijd
-      // Vroegste aankomst = arrivalStartMin, trek reistijd + ruime buffer af
-      const estimatedDepartMin = arrivalStartMin - sampleDuration - 90 // 1.5 uur buffer om zeker te zijn
+      // Calculate backwards: first possible departure time
+      // Earliest arrival = arrivalStartMin, subtract travel time + generous buffer
+      const estimatedDepartMin = arrivalStartMin - sampleDuration - 90 // 1.5 hour buffer to be safe
       
-      // Zoek eerste vertrektijd die binnen bereik aankomt
+      // Find first departure time that arrives within range
       let currentDepartMin = Math.max(0, estimatedDepartMin)
       let foundFirst = false
       
-      while (currentDepartMin <= arrivalEndMin + 60) { // tot 1 uur na eind
+      while (currentDepartMin <= arrivalEndMin + 60) { // up to 1 hour after end
         const dH = Math.floor(currentDepartMin / 60)
         const dM = currentDepartMin % 60
         const departTime = `${String(dH).padStart(2, '0')}:${String(dM).padStart(2, '0')}`
@@ -391,7 +391,7 @@ const analyzeTravelTimes = async () => {
         const aM = arrivalMin % 60
         const arrivalTimeStr = `${String(aH).padStart(2, '0')}:${String(aM).padStart(2, '0')}`
         
-        // Check of aankomst binnen bereik valt
+        // Check if arrival falls within range
         const isInRange = arrivalMin >= arrivalStartMin && arrivalMin <= arrivalEndMin
         
         if (isInRange) {
@@ -402,10 +402,10 @@ const analyzeTravelTimes = async () => {
             arrivalTime: arrivalTimeStr
           } as any)
         } else if (foundFirst && arrivalMin > arrivalEndMin) {
-          // We zijn NA het bereik, stop
+          // We are AFTER the range, stop
           break
         }
-        // Als we VOOR het bereik zijn (arrivalMin < arrivalStartMin), blijf zoeken
+        // If we are BEFORE the range (arrivalMin < arrivalStartMin), keep searching
         
         currentDepartMin += 5
       }
@@ -413,7 +413,7 @@ const analyzeTravelTimes = async () => {
 
     // Find the best time(s)
     if (travelTimes.value.length > 0) {
-      // Altijd de kortste reistijd vinden
+      // Always find the shortest travel time
       const minDuration = Math.min(...travelTimes.value.map((t) => t.duration))
       
       if (timeMode.value === 'departure') {
@@ -421,7 +421,7 @@ const analyzeTravelTimes = async () => {
           .filter((t) => t.duration === minDuration)
           .map((t) => t.time)
       } else {
-        // In arrival mode: toon vertrektijd → aankomsttijd voor beste tijden
+        // In arrival mode: show departure time → arrival time for best times
         bestTimes.value = travelTimes.value
           .filter((t) => t.duration === minDuration)
           .map((t) => {
@@ -443,7 +443,7 @@ const analyzeTravelTimes = async () => {
     }
   } catch (error: any) {
     hasError.value = true
-    errorMessage.value = error.message || 'Kan geen verkeersinformatie ophalen. Check je API key in GOOGLE_MAPS_SETUP.md'
+    errorMessage.value = error.message || 'Cannot fetch traffic information. Check your API key in GOOGLE_MAPS_SETUP.md'
     console.error('Error fetching travel times:', error)
   } finally {
     clearInterval(messageInterval)
@@ -460,11 +460,11 @@ const swapLocations = () => {
 
 const useCurrentLocation = async () => {
   if (!navigator.geolocation) {
-    alert('Geolocation wordt niet ondersteund door je browser')
+    alert('Geolocation is not supported by your browser')
     return
   }
 
-  locationStatus.value = '📍 Locatie ophalen...'
+  locationStatus.value = '📍 Getting location...'
   locationStatusType.value = 'info'
   showLocationStatus.value = true
 
@@ -489,7 +489,7 @@ const useCurrentLocation = async () => {
       const lat = position.coords.latitude
       const lng = position.coords.longitude
       
-      locationStatus.value = '🔍 Adres zoeken...'
+      locationStatus.value = '🔍 Finding address...'
       locationStatusType.value = 'info'
       console.log('Got location:', lat, lng)
       
@@ -510,12 +510,12 @@ const useCurrentLocation = async () => {
             console.log('Geocode status:', status, 'Results:', results)
             if (status === 'OK' && results && results[0]) {
               fromLocation.value = results[0].formatted_address
-              locationStatus.value = '✅ Locatie ingevuld!'
+              locationStatus.value = '✅ Location filled!'
               locationStatusType.value = 'success'
               console.log('Set location to:', results[0].formatted_address)
               setTimeout(() => showLocationStatus.value = false, 2000)
             } else {
-              locationStatus.value = '❌ Adres niet gevonden'
+              locationStatus.value = '❌ Address not found'
               locationStatusType.value = 'error'
               setTimeout(() => showLocationStatus.value = false, 3000)
             }
@@ -532,13 +532,13 @@ const useCurrentLocation = async () => {
       console.error('Geolocation error:', error)
       locationStatusType.value = 'error'
       if (error.code === 1) {
-        locationStatus.value = '❌ Geen toestemming'
+        locationStatus.value = '❌ Permission denied'
       } else if (error.code === 2) {
-        locationStatus.value = '❌ Locatie niet beschikbaar'
+        locationStatus.value = '❌ Location unavailable'
       } else if (error.code === 3) {
-        locationStatus.value = '⏱️ Time-out'
+        locationStatus.value = '⏱️ Timeout'
       } else {
-        locationStatus.value = '❌ Fout opgetreden'
+        locationStatus.value = '❌ Error occurred'
       }
       setTimeout(() => showLocationStatus.value = false, 3000)
     },
@@ -549,18 +549,18 @@ const useCurrentLocation = async () => {
 // Use current location for address book
 const useCurrentLocationForAddressBook = async () => {
   if (!navigator.geolocation) {
-    alert('Geolocation wordt niet ondersteund door je browser')
+    alert('Geolocation is not supported by your browser')
     return
   }
 
-  locationStatus.value = '📍 Locatie ophalen...'
+  locationStatus.value = '📍 Getting location...'
   locationStatusType.value = 'info'
   showLocationStatus.value = true
 
   try {
     await loadGoogleMapsAPI()
   } catch (error) {
-    locationStatus.value = '❌ Google Maps laden mislukt'
+    locationStatus.value = '❌ Failed to load Google Maps'
     locationStatusType.value = 'error'
     setTimeout(() => showLocationStatus.value = false, 3000)
     console.error('Google Maps load error:', error)
@@ -578,14 +578,14 @@ const useCurrentLocationForAddressBook = async () => {
       const lat = position.coords.latitude
       const lng = position.coords.longitude
       
-      locationStatus.value = '🔍 Adres zoeken...'
+      locationStatus.value = '🔍 Finding address...'
       locationStatusType.value = 'info'
       console.log('Got location for address book:', lat, lng)
       
       try {
         const google = (window as any).google
         if (!google || !google.maps || !google.maps.Geocoder) {
-          locationStatus.value = '❌ Google Maps niet beschikbaar'
+          locationStatus.value = '❌ Google Maps not available'
           locationStatusType.value = 'error'
           setTimeout(() => showLocationStatus.value = false, 3000)
           return
@@ -598,12 +598,12 @@ const useCurrentLocationForAddressBook = async () => {
             console.log('Geocode status:', status, 'Results:', results)
             if (status === 'OK' && results && results[0]) {
               newAddressLocation.value = results[0].formatted_address
-              locationStatus.value = '✅ Locatie ingevuld!'
+              locationStatus.value = '✅ Location filled!'
               locationStatusType.value = 'success'
               console.log('Set address book location to:', results[0].formatted_address)
               setTimeout(() => showLocationStatus.value = false, 2000)
             } else {
-              locationStatus.value = '❌ Adres niet gevonden'
+              locationStatus.value = '❌ Address not found'
               locationStatusType.value = 'error'
               setTimeout(() => showLocationStatus.value = false, 3000)
             }
@@ -611,7 +611,7 @@ const useCurrentLocationForAddressBook = async () => {
         )
       } catch (error) {
         console.error('Geocoding error:', error)
-        locationStatus.value = '❌ Fout bij adres ophalen'
+        locationStatus.value = '❌ Error getting address'
         locationStatusType.value = 'error'
         setTimeout(() => showLocationStatus.value = false, 3000)
       }
@@ -620,13 +620,13 @@ const useCurrentLocationForAddressBook = async () => {
       console.error('Geolocation error:', error)
       locationStatusType.value = 'error'
       if (error.code === 1) {
-        locationStatus.value = '❌ Geen toestemming'
+        locationStatus.value = '❌ Permission denied'
       } else if (error.code === 2) {
-        locationStatus.value = '❌ Locatie niet beschikbaar'
+        locationStatus.value = '❌ Location unavailable'
       } else if (error.code === 3) {
-        locationStatus.value = '❌ Time-out'
+        locationStatus.value = '❌ Timeout'
       } else {
-        locationStatus.value = '❌ Fout opgetreden'
+        locationStatus.value = '❌ Error occurred'
       }
       setTimeout(() => showLocationStatus.value = false, 3000)
     },
@@ -637,7 +637,7 @@ const useCurrentLocationForAddressBook = async () => {
 // Address book functions
 const addToAddressBook = () => {
   if (!newAddressName.value.trim() || !newAddressLocation.value.trim()) {
-    alert('Vul naam en adres in!')
+    alert('Fill in name and address!')
     return
   }
   
@@ -701,12 +701,12 @@ const setAlarm = async (time: string) => {
     
     if (permission === 'granted') {
       showLocationStatus.value = true
-      locationStatus.value = '✅ Notificaties ingeschakeld!'
+      locationStatus.value = '✅ Notifications enabled!'
       locationStatusType.value = 'success'
       setTimeout(() => showLocationStatus.value = false, 3000)
     } else {
       showLocationStatus.value = true
-      locationStatus.value = '⚠️ Notificaties geblokkeerd - je krijgt alleen een alert'
+      locationStatus.value = '⚠️ Notifications blocked - you will only get an alert'
       locationStatusType.value = 'error'
       setTimeout(() => showLocationStatus.value = false, 5000)
     }
@@ -789,13 +789,13 @@ const scheduleAlarmWithRepeat = (time: string) => {
   
   // Get the day of week from selectedDay
   const dayMap: { [key: string]: number } = {
-    'zondag': 0,
-    'maandag': 1,
-    'dinsdag': 2,
-    'woensdag': 3,
-    'donderdag': 4,
-    'vrijdag': 5,
-    'zaterdag': 6
+    'sunday': 0,
+    'monday': 1,
+    'tuesday': 2,
+    'wednesday': 3,
+    'thursday': 4,
+    'friday': 5,
+    'saturday': 6
   }
   const targetDayOfWeek = dayMap[selectedDay.value] || 1
   
@@ -904,20 +904,20 @@ const removeAlarm = (index: number) => {
   localStorage.setItem('savedAlarms', JSON.stringify(savedAlarms.value))
   
   showLocationStatus.value = true
-  locationStatus.value = '❌ Alarm verwijderd'
+  locationStatus.value = '❌ Alarm removed'
   locationStatusType.value = 'success'
   setTimeout(() => showLocationStatus.value = false, 3000)
 }
 
 const clearAllAlarms = () => {
-  if (confirm(`Weet je zeker dat je alle ${savedAlarms.value.length} alarm(s) wilt verwijderen?`)) {
+  if (confirm(`Are you sure you want to delete all ${savedAlarms.value.length} alarm(s)?`)) {
     savedAlarms.value = []
     localStorage.removeItem('savedAlarms')
     cancelAlarms()
     showAlarmManager.value = false
     
     showLocationStatus.value = true
-    locationStatus.value = '✅ Alle alarmen verwijderd'
+    locationStatus.value = '✅ All alarms removed'
     locationStatusType.value = 'success'
     setTimeout(() => showLocationStatus.value = false, 3000)
   }
@@ -928,29 +928,29 @@ const testNotification = async () => {
     if (Notification.permission === 'default') {
       const permission = await Notification.requestPermission()
       if (permission === 'granted') {
-        new Notification('🎉 Test succesvol!', {
-          body: 'Notificaties werken! Je krijgt een melding op je alarm tijd.',
+        new Notification('🎉 Test successful!', {
+          body: 'Notifications work! You will get a notification at your alarm time.',
           icon: '/icon.png'
         })
       } else {
-        alert('❌ Notificaties geblokkeerd. Check je browser instellingen.')
+        alert('❌ Notifications blocked. Check your browser settings.')
       }
     } else if (Notification.permission === 'granted') {
-      new Notification('🎉 Test succesvol!', {
-        body: 'Notificaties werken! Je krijgt een melding op je alarm tijd.',
+      new Notification('🎉 Test successful!', {
+        body: 'Notifications work! You will get a notification at your alarm time.',
         icon: '/icon.png'
       })
     } else {
-      alert('❌ Notificaties zijn geblokkeerd. Ga naar je browser instellingen om dit te wijzigen.')
+      alert('❌ Notifications are blocked. Go to your browser settings to change this.')
     }
   } else {
-    alert('❌ Je browser ondersteunt geen notificaties.')
+    alert('❌ Your browser does not support notifications.')
   }
 }
 
 const installApp = async () => {
   if (!deferredPrompt.value) {
-    alert('📱 Open deze site in je browser om de app te installeren!')
+    alert('📱 Open this site in your browser to install the app!')
     return
   }
   
@@ -1178,7 +1178,7 @@ const chartData = computed(() => {
       : travelTimes.value.map((t) => t.time),
     datasets: [
       {
-        label: timeMode.value === 'arrival' ? 'Vertrektijd → Aankomsttijd' : 'Reistijd (minuten)',
+        label: timeMode.value === 'arrival' ? 'Departure time → Arrival time' : 'Travel time (minutes)',
         data: durations,
         borderColor: '#424242',
         backgroundColor: 'rgba(66, 66, 66, 0.15)',
@@ -1212,8 +1212,8 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
     title: {
       display: true,
       text: timeMode.value === 'departure' 
-        ? '🚦 Vergelijk vertrektijden' 
-        : '⏱️ Reistijd per vertrektijd',
+        ? '🚦 Compare departure times' 
+        : '⏱️ Travel time by departure time',
       color: '#212121',
       font: {
         size: 18,
@@ -1226,7 +1226,7 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
       beginAtZero: false,
       title: {
         display: true,
-        text: 'Reistijd (minuten)',
+        text: 'Travel time (minutes)',
         color: '#424242',
         font: {
           size: 14,
@@ -1247,8 +1247,8 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
       title: {
         display: true,
         text: timeMode.value === 'departure' 
-          ? 'Vertrektijd' 
-          : 'Vertrektijd',
+          ? 'Departure time' 
+          : 'Departure time',
         color: '#424242',
         font: {
           size: 14,
@@ -1276,12 +1276,12 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
       <div class="pwa-banner-content">
         <div class="pwa-banner-icon">📱</div>
         <div class="pwa-banner-text">
-          <strong>Installeer de app!</strong>
-          <p>Krijg push notificaties op je telefoon, ook als de app gesloten is.</p>
+          <strong>Install the app!</strong>
+          <p>Get push notifications on your phone, even when the app is closed.</p>
         </div>
       </div>
       <div class="pwa-banner-actions">
-        <button @click="installApp" class="pwa-install-btn">Installeren</button>
+        <button @click="installApp" class="pwa-install-btn">Install</button>
         <button @click="dismissInstallPrompt" class="pwa-dismiss-btn">✕</button>
       </div>
     </div>
@@ -1302,7 +1302,7 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
         <button 
           @click="showAddressBook = !showAddressBook" 
           class="address-book-toggle"
-          :title="showAddressBook ? 'Sluit adresboek' : 'Open adresboek'"
+          :title="showAddressBook ? 'Close address book' : 'Open address book'"
         >
           📖
         </button>
@@ -1313,7 +1313,7 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
     <div v-if="showAddressBook" class="modal-overlay" @click="showAddressBook = false">
       <div class="address-book-modal" @click.stop>
         <div class="modal-header">
-          <h2>📖 Adresboek</h2>
+          <h2>📖 Address Book</h2>
           <button @click="showAddressBook = false" class="close-btn">✕</button>
         </div>
         
@@ -1324,33 +1324,33 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
               <button 
                 @click="showEmojiPicker = !showEmojiPicker" 
                 class="emoji-picker-btn"
-                title="Kies emoji"
+                title="Choose emoji"
               >
                 {{ newAddressEmoji }} <span class="picker-arrow">▼</span>
               </button>
             </div>
             <div class="name-location-wrapper">
-              <label class="input-label">Naam</label>
+              <label class="input-label">Name</label>
               <input
                 v-model="newAddressName"
                 type="text"
-                placeholder="bijv. Werk"
+                placeholder="e.g. Work"
                 class="address-input name-input"
                 maxlength="20"
               />
             </div>
-            <button @click="useCurrentLocationForAddressBook" class="icon-btn location-btn-inline" title="Huidige locatie">
+            <button @click="useCurrentLocationForAddressBook" class="icon-btn location-btn-inline" title="Current location">
               📍
             </button>
           </div>
           
           <div class="address-wrapper">
-            <label class="input-label">Adres</label>
+            <label class="input-label">Address</label>
             <input
               id="address-location"
               v-model="newAddressLocation"
               type="text"
-              placeholder="Type een adres..."
+              placeholder="Type an address..."
               class="address-input address-input-full"
             />
           </div>
@@ -1366,12 +1366,12 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
             </button>
           </div>
           
-          <button @click="addToAddressBook" class="add-btn">➕ Toevoegen</button>
+          <button @click="addToAddressBook" class="add-btn">➕ Add</button>
         </div>
 
         <div class="address-list">
           <div v-if="addressBook.length === 0" class="empty-state">
-            Geen adressen opgeslagen. Voeg er een toe!
+            No addresses saved. Add one!
           </div>
           <div v-for="(item, idx) in addressBook" :key="idx" class="address-item">
             <div class="address-info">
@@ -1383,10 +1383,10 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
             </div>
             <div class="address-actions">
               <button @click="useAddressFromBook(item.address, 'from')" class="use-btn">
-                Van
+                From
               </button>
               <button @click="useAddressFromBook(item.address, 'to')" class="use-btn">
-                Naar
+                To
               </button>
               <button @click="deleteFromAddressBook(idx)" class="delete-btn">
                 🗑️
@@ -1415,39 +1415,39 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
     <div class="form-container">
       <div class="form-row">
         <div class="form-group location-group">
-          <label for="from-location">Van (locatie):</label>
+          <label for="from-location">From (location):</label>
           <div class="input-with-buttons">
             <input
               id="from-location"
               v-model="fromLocation"
               type="text"
-              placeholder="bijv. Amsterdam Centraal"
+              placeholder="e.g. Amsterdam Central"
             />
-            <button @click="useCurrentLocation" class="icon-btn" title="Huidige locatie">
+            <button @click="useCurrentLocation" class="icon-btn" title="Current location">
               📍
             </button>
-            <button @click="showAddressBook = true" class="icon-btn" title="Uit adresboek">
+            <button @click="showAddressBook = true" class="icon-btn" title="From address book">
               📖
             </button>
           </div>
         </div>
 
         <div class="swap-button-container">
-          <button @click="swapLocations" class="swap-btn" title="Wissel om">
+          <button @click="swapLocations" class="swap-btn" title="Swap">
             ⇅
           </button>
         </div>
 
         <div class="form-group location-group">
-          <label for="to-location">Naar (locatie):</label>
+          <label for="to-location">To (location):</label>
           <div class="input-with-buttons">
             <input
               id="to-location"
               v-model="toLocation"
               type="text"
-              placeholder="bijv. Rotterdam Centraal"
+              placeholder="e.g. Rotterdam Central"
             />
-            <button @click="showAddressBook = true" class="icon-btn" title="Uit adresboek">
+            <button @click="showAddressBook = true" class="icon-btn" title="From address book">
               📖
             </button>
           </div>
@@ -1456,7 +1456,7 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
 
       <div class="form-row compact">
         <div class="form-group">
-          <label for="day">Dag:</label>
+          <label for="day">Day:</label>
           <select id="day" v-model="selectedDay">
             <option v-for="day in days" :key="day" :value="day">
               {{ day.charAt(0).toUpperCase() + day.slice(1) }}
@@ -1465,37 +1465,37 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
         </div>
 
         <div class="form-group">
-          <label for="start-time">{{ timeMode === 'arrival' ? 'Aankomen vanaf:' : 'Van:' }}</label>
+          <label for="start-time">{{ timeMode === 'arrival' ? 'Arrive from:' : 'From:' }}</label>
           <input id="start-time" v-model="startTime" type="time" />
         </div>
 
         <div class="form-group">
-          <label for="end-time">{{ timeMode === 'arrival' ? 'Aankomen tot:' : 'Tot:' }}</label>
+          <label for="end-time">{{ timeMode === 'arrival' ? 'Arrive until:' : 'Until:' }}</label>
           <input id="end-time" v-model="endTime" type="time" />
         </div>
       </div>
 
       <!-- Time mode toggle -->
       <div class="time-mode-toggle">
-        <label class="toggle-label">⏰ Wat wil je analyseren?</label>
+        <label class="toggle-label">⏰ What do you want to analyze?</label>
         <div class="toggle-buttons">
           <button 
             @click="timeMode = 'departure'"
             :class="['toggle-btn', { active: timeMode === 'departure' }]"
           >
-            🚗 Ik vertrek tussen deze tijden
+            🚗 Departure
           </button>
           <button 
             @click="timeMode = 'arrival'"
             :class="['toggle-btn', { active: timeMode === 'arrival' }]"
           >
-            🏁 Ik wil tussen deze tijden aankomen
+            🏁 Arrival
           </button>
         </div>
         <p class="toggle-description">
           {{ timeMode === 'departure' 
-            ? '⏱️ Vind de beste tijd om te vertrekken (kortste reistijd)' 
-            : '🎯 Bereken wanneer je moet vertrekken om op tijd aan te komen' 
+            ? '⏱️ Find the best time to leave (shortest travel time)' 
+            : '⏱️ Find the best departure time to arrive within this range (shortest travel time)' 
           }}
         </p>
       </div>
@@ -1506,10 +1506,10 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
       
       <!-- Test buttons -->
       <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-        <button @click="testNotification" class="test-notification-btn" title="Test of notificaties werken">
-          🔔 Test notificatie
+        <button @click="testNotification" class="test-notification-btn" title="Test if notifications work">
+          🔔 Test notification
         </button>
-        <button @click="showInstallPrompt = !showInstallPrompt" class="test-notification-btn" title="Toon/verberg PWA install banner">
+        <button @click="showInstallPrompt = !showInstallPrompt" class="test-notification-btn" title="Show/hide PWA install banner">
           📱 Toggle PWA
         </button>
       </div>
@@ -1523,13 +1523,13 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
     <!-- Alarm manager modal -->
     <div v-if="showAlarmManager" class="modal-overlay" @click="showAlarmManager = false">
       <div class="modal-content alarm-manager-modal" @click.stop>
-        <h3>⏰ Actieve Alarmen</h3>
-        <p class="modal-subtitle">Beheer je ingestelde verkeer alarmen</p>
+        <h3>⏰ Active Alarms</h3>
+        <p class="modal-subtitle">Manage your traffic alarms</p>
         
         <div v-if="savedAlarms.length === 0" class="no-alarms">
           <span class="no-alarms-icon">🔔</span>
-          <p>Geen actieve alarmen</p>
-          <small>Stel een alarm in na een verkeersanalyse</small>
+          <p>No active alarms</p>
+          <small>Set an alarm after a traffic analysis</small>
         </div>
         
         <div v-else class="alarms-list">
@@ -1540,13 +1540,13 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
               <div class="alarm-meta">
                 <span class="alarm-day">📅 {{ alarm.day.charAt(0).toUpperCase() + alarm.day.slice(1) }}</span>
                 <span class="alarm-repeat">
-                  {{ alarm.repeat === 'once' ? '🔔 Eenmalig' : 
-                     alarm.repeat === 'daily' ? '📅 Dagelijks' : 
-                     alarm.repeat === 'weekly' ? '🔄 Wekelijks' : '💼 Werkdagen' }}
+                  {{ alarm.repeat === 'once' ? '🔔 Once' : 
+                     alarm.repeat === 'daily' ? '📅 Daily' : 
+                     alarm.repeat === 'weekly' ? '🔄 Weekly' : '💼 Weekdays' }}
                 </span>
               </div>
             </div>
-            <button @click="removeAlarm(index)" class="remove-alarm-btn" title="Verwijder alarm">
+            <button @click="removeAlarm(index)" class="remove-alarm-btn" title="Remove alarm">
               🗑️
             </button>
           </div>
@@ -1554,10 +1554,10 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
         
         <div class="alarm-manager-actions">
           <button v-if="savedAlarms.length > 0" @click="clearAllAlarms" class="clear-all-btn">
-            🗑️ Verwijder alle alarmen
+            🗑️ Remove all alarms
           </button>
           <button @click="showAlarmManager = false" class="modal-close-btn">
-            Sluiten
+            Close
           </button>
         </div>
       </div>
@@ -1566,40 +1566,40 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
     <!-- Alarm selector dialog -->
     <div v-if="showAlarmSelector" class="modal-overlay" @click="showAlarmSelector = false">
       <div class="modal-content" @click.stop>
-        <h3>⏰ Selecteer alarm tijd</h3>
-        <p class="modal-subtitle">Kies voor welk tijdstip je een alarm wilt instellen:</p>
+        <h3>⏰ Select alarm time</h3>
+        <p class="modal-subtitle">Choose the time for which you want to set an alarm:</p>
         
         <!-- Repeat options -->
         <div class="repeat-options">
-          <label class="repeat-label">Herhaling:</label>
+          <label class="repeat-label">Repeat:</label>
           <div class="repeat-buttons">
             <button 
               @click="alarmRepeat = 'once'"
               class="repeat-btn"
               :class="{ active: alarmRepeat === 'once' }"
             >
-              🔔 Eenmalig
+              🔔 Once
             </button>
             <button 
               @click="alarmRepeat = 'daily'"
               class="repeat-btn"
               :class="{ active: alarmRepeat === 'daily' }"
             >
-              📅 Dagelijks
+              📅 Daily
             </button>
             <button 
               @click="alarmRepeat = 'weekly'"
               class="repeat-btn"
               :class="{ active: alarmRepeat === 'weekly' }"
             >
-              🔄 Wekelijks ({{ selectedDay }})
+              🔄 Weekly ({{ selectedDay }})
             </button>
             <button 
               @click="alarmRepeat = 'weekdays'"
               class="repeat-btn"
               :class="{ active: alarmRepeat === 'weekdays' }"
             >
-              💼 Werkdagen (ma-vr)
+              💼 Weekdays (Mon-Fri)
             </button>
           </div>
         </div>
@@ -1614,10 +1614,10 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
           >
             <span class="time-value">{{ time.time }}</span>
             <span class="duration-value">{{ time.duration }} min</span>
-            <span v-if="bestTimes.includes(time.time)" class="best-badge">✨ Beste tijd</span>
+            <span v-if="bestTimes.includes(time.time)" class="best-badge">✨ Best time</span>
           </button>
         </div>
-        <button @click="showAlarmSelector = false" class="modal-close-btn">Annuleren</button>
+        <button @click="showAlarmSelector = false" class="modal-close-btn">Cancel</button>
       </div>
     </div>
 
@@ -1625,7 +1625,7 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
     <div v-if="showAlarmSet" class="alarm-notification">
       ⏰ Alarm set for {{ alarmTime }}!
       <span v-if="alarmRepeat !== 'once'" class="repeat-indicator">
-        {{ alarmRepeat === 'daily' ? '(dagelijks)' : alarmRepeat === 'weekly' ? '(wekelijks)' : '(werkdagen)' }}
+        {{ alarmRepeat === 'daily' ? '(daily)' : alarmRepeat === 'weekly' ? '(weekly)' : '(weekdays)' }}
       </span>
     </div>
     
@@ -1642,14 +1642,14 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
     </div>
 
     <div v-if="hasError" class="error-message">
-      <h2>❌ Fout</h2>
+      <h2>❌ Error</h2>
       <p>{{ errorMessage }}</p>
-      <p class="error-help">Zie <a href="./GOOGLE_MAPS_SETUP.md" target="_blank">GOOGLE_MAPS_SETUP.md</a> voor setup instructies.</p>
+      <p class="error-help">See <a href="./GOOGLE_MAPS_SETUP.md" target="_blank">GOOGLE_MAPS_SETUP.md</a> for setup instructions.</p>
     </div>
 
     <div v-if="!isLoading && !hasError && travelTimes.length > 0" class="results">
       <div class="best-times">
-        <h2>{{ timeMode === 'departure' ? '🎯 Beste Vertrektijd' : '🏁 Wanneer Vertrekken?' }}</h2>
+        <h2>{{ timeMode === 'departure' ? '🎯 Best Departure Time' : '🏁 Best Departure Time' }}</h2>
         <p class="route-info">
           {{ fromLocation.split(',')[0] }} → {{ toLocation.split(',')[0] }}
         </p>
@@ -1659,7 +1659,7 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
           </span>
         </div>
         <p class="min-duration">
-          ⚡ {{ timeMode === 'departure' ? 'Kortste reistijd' : 'Snelste optie' }}: {{ Math.min(...travelTimes.map((t) => t.duration)) }} minuten
+          ⚡ {{ timeMode === 'departure' ? 'Shortest travel time' : 'Shortest travel time' }}: {{ Math.min(...travelTimes.map((t) => t.duration)) }} minutes
         </p>
 
         <!-- Money & time saved -->
@@ -1699,7 +1699,7 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
         
         <!-- Scroll indicator -->
         <div class="scroll-indicator">
-          <span class="scroll-text">📊 Bekijk de grafiek hieronder</span>
+          <span class="scroll-text">📊 View the chart below</span>
           <span class="scroll-arrow">↓</span>
         </div>
       </div>
@@ -1713,15 +1713,15 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
       <!-- Journey Time Matrix -->
       <div class="matrix-container">
         <div class="matrix-header">
-          <h3>📊 Reistijd Visualisatie</h3>
+          <h3>📊 Travel Time Visualization</h3>
           <p class="matrix-description">
-            Elk balkje toont de reis van vertrektijd (links) naar aankomsttijd (rechts). 
-            Langere balken = langere reistijd.
+            Each bar shows the journey from departure time (left) to arrival time (right). 
+            Longer bars = longer travel time.
           </p>
         </div>
         <div class="matrix-content">
           <div class="matrix-y-axis">
-            <div class="axis-label-y">Vertrektijd</div>
+            <div class="axis-label-y">Departure time</div>
             <div class="matrix-y-labels">
               <div v-for="item in travelTimes" :key="item.time" class="matrix-y-label">
                 {{ item.time }}
@@ -1756,19 +1756,19 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
             </div>
           </div>
         </div>
-        <div class="matrix-x-axis-label">Aankomsttijd</div>
+        <div class="matrix-x-axis-label">Arrival time</div>
         <div class="matrix-legend">
           <div class="legend-item">
             <div class="legend-color" style="background: #42b983"></div>
-            <span>Snelste tijd</span>
+            <span>Fastest time</span>
           </div>
           <div class="legend-item">
             <div class="legend-color" style="background: #ffa500"></div>
-            <span>Gemiddeld</span>
+            <span>Average</span>
           </div>
           <div class="legend-item">
             <div class="legend-color" style="background: #ff6b6b"></div>
-            <span>Langzaamste tijd</span>
+            <span>Slowest time</span>
           </div>
         </div>
       </div>

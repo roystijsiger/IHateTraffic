@@ -6,8 +6,8 @@
 const API_KEY = import.meta.env.VITE_HERE_API_KEY
 
 export interface TravelTimeResult {
-  duration: number // in minutes (zonder verkeer)
-  durationInTraffic: number // in minutes (met verkeer)
+  duration: number // in minutes (without traffic)
+  durationInTraffic: number // in minutes (with traffic)
   distance: number // in meters
 }
 
@@ -25,13 +25,13 @@ async function geocodeLocation(location: string): Promise<{ lat: number; lng: nu
   )
 
   if (!response.ok) {
-    throw new Error(`Geocoding fout: ${response.status}`)
+    throw new Error(`Geocoding error: ${response.status}`)
   }
 
   const data = await response.json()
 
   if (!data.items || data.items.length === 0) {
-    throw new Error(`Locatie niet gevonden: ${location}`)
+    throw new Error(`Location not found: ${location}`)
   }
 
   const position = data.items[0].position
@@ -39,7 +39,7 @@ async function geocodeLocation(location: string): Promise<{ lat: number; lng: nu
 }
 
 /**
- * Haalt reistijd op via HERE Routing API met verkeersinformatie
+ * Get travel time via HERE Routing API with traffic information
  */
 export async function getTravelTime(
   origin: string,
@@ -60,7 +60,7 @@ export async function getTravelTime(
       geocodeLocation(destination)
     ])
 
-    // Stap 2: Route berekenen met verkeersinformatie
+    // Step 2: Calculate route with traffic information
     const params: any = {
       origin: `${originCoords.lat},${originCoords.lng}`,
       destination: `${destCoords.lat},${destCoords.lng}`,
@@ -90,7 +90,7 @@ export async function getTravelTime(
     const data = await response.json()
 
     if (!data.routes || data.routes.length === 0) {
-      throw new Error('Geen route gevonden')
+      throw new Error('No route found')
     }
 
     const route = data.routes[0]
@@ -113,45 +113,45 @@ export async function getTravelTime(
 }
 
 /**
- * Fallback functie met gesimuleerde data
+ * Fallback function with simulated data
  */
 function getFallbackTravelTime(departureTime: Date): TravelTimeResult {
   const hour = departureTime.getHours()
   const dayOfWeek = departureTime.getDay()
   const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5
 
-  // Simuleer spitsuur patronen (alleen op weekdagen)
+  // Simulate rush hour patterns (only on weekdays)
   let duration: number
   if (isWeekday && ((hour >= 7 && hour < 9) || (hour >= 17 && hour < 19))) {
-    // Spitsuur: 35-65 minuten
+    // Rush hour: 35-65 minutes
     duration = Math.floor(Math.random() * 30) + 35
   } else if (hour >= 22 || hour < 6) {
-    // Nacht: 20-30 minuten
+    // Night: 20-30 minutes
     duration = Math.floor(Math.random() * 10) + 20
   } else {
-    // Normale uren: 25-40 minuten
+    // Normal hours: 25-40 minutes
     duration = Math.floor(Math.random() * 15) + 25
   }
 
   return {
-    duration: Math.round(duration * 0.85), // basis zonder verkeer
+    duration: Math.round(duration * 0.85), // base without traffic
     durationInTraffic: duration,
     distance: 75000 // 75km als voorbeeld
   }
 }
 
 /**
- * Helper functie om een Date object te maken voor een specifieke dag en tijd
+ * Helper function to create a Date object for a specific day and time
  */
 export function createDepartureTime(dayName: string, timeString: string): Date {
   const dayMap: { [key: string]: number } = {
-    zondag: 0,
-    maandag: 1,
-    dinsdag: 2,
-    woensdag: 3,
-    donderdag: 4,
-    vrijdag: 5,
-    zaterdag: 6
+    sunday: 0,
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6
   }
 
   const targetDay = dayMap[dayName.toLowerCase()] ?? 0
@@ -162,10 +162,10 @@ export function createDepartureTime(dayName: string, timeString: string): Date {
   const now = new Date()
   const result = new Date()
 
-  // Zet de tijd
+  // Set the time
   result.setHours(hours, minutes, 0, 0)
 
-  // Bereken hoeveel dagen we vooruit moeten
+  // Calculate how many days ahead we need to go
   const currentDay = now.getDay()
   let daysToAdd = targetDay - currentDay
 
