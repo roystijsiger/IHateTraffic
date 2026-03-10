@@ -44,12 +44,13 @@ async function geocodeLocation(location: string): Promise<{ lat: number; lng: nu
 export async function getTravelTime(
   origin: string,
   destination: string,
-  departureTime: Date,
-  dayOfWeek: number
+  targetTime: Date,
+  dayOfWeek: number,
+  mode: 'departure' | 'arrival' = 'departure'
 ): Promise<TravelTimeResult> {
   if (!API_KEY || API_KEY === 'your_api_key_here') {
     console.warn('⚠️ HERE API key niet geconfigureerd, gebruik fallback data')
-    return getFallbackTravelTime(departureTime)
+    return getFallbackTravelTime(targetTime)
   }
 
   try {
@@ -60,17 +61,25 @@ export async function getTravelTime(
     ])
 
     // Stap 2: Route berekenen met verkeersinformatie
-    const params = new URLSearchParams({
+    const params: any = {
       origin: `${originCoords.lat},${originCoords.lng}`,
       destination: `${destCoords.lat},${destCoords.lng}`,
       transportMode: 'car',
-      departureTime: departureTime.toISOString(),
       return: 'summary,polyline',
       apiKey: API_KEY
-    })
+    }
+
+    // Gebruik departureTime of arrivalTime
+    if (mode === 'arrival') {
+      params.arrivalTime = targetTime.toISOString()
+    } else {
+      params.departureTime = targetTime.toISOString()
+    }
+
+    const paramsString = new URLSearchParams(params)
 
     const response = await fetch(
-      `https://router.hereapi.com/v8/routes?${params}`
+      `https://router.hereapi.com/v8/routes?${paramsString}`
     )
 
     if (!response.ok) {
@@ -99,7 +108,7 @@ export async function getTravelTime(
   } catch (error) {
     console.error('HERE API error:', error)
     // Fallback naar gesimuleerde data bij fout
-    return getFallbackTravelTime(departureTime)
+    return getFallbackTravelTime(targetTime)
   }
 }
 

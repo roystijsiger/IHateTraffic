@@ -25,6 +25,8 @@ const startTime = ref<string>('07:00')
 const endTime = ref<string>('09:00')
 const fromLocation = ref<string>('')
 const toLocation = ref<string>('')
+const timeMode = ref<'departure' | 'arrival'>('departure') // departure = vertrektijd, arrival = aankomsttijd
+const desiredArrivalTime = ref<string>('09:00') // Gewenste aankomsttijd
 
 // Data
 const travelTimes = ref<{ time: string; duration: number }[]>([])
@@ -289,17 +291,17 @@ const generateTimeSlots = (start: string, end: string): string[] => {
   return slots
 }
 
-// Fetch travel time using HERE API
+// Fetch travel time using Google Maps API
 const fetchTravelTime = async (
   day: string,
   time: string,
   from: string,
   to: string
 ): Promise<number> => {
-  const departureTime = createDepartureTime(day, time)
-  const dayOfWeek = departureTime.getDay()
+  const targetTime = createDepartureTime(day, time)
+  const dayOfWeek = targetTime.getDay()
   
-  const result = await getTravelTime(from, to, departureTime, dayOfWeek)
+  const result = await getTravelTime(from, to, targetTime, dayOfWeek, timeMode.value)
   return result.durationInTraffic
 }
 
@@ -322,24 +324,106 @@ const analyzeTravelTimes = async () => {
   }, 2000)
 
   try {
-    const timeSlots = generateTimeSlots(startTime.value, endTime.value)
+    if (timeMode.value === 'departure') {
+      // Normale modus: analyseer verschillende vertrektijden
+      const timeSlots = generateTimeSlots(startTime.value, endTime.value)
 
-    for (const slot of timeSlots) {
-      const duration = await fetchTravelTime(
+      for (const slot of timeSlots) {
+        const duration = await fetchTravelTime(
+          selectedDay.value,
+          slot,
+          fromLocation.value,
+          toLocation.value
+        )
+        travelTimes.value.push({ time: slot, duration })
+      }
+    } else {
+      // Aankomst modus: Ik wil tussen startTime-endTime AANKOMEN
+      // Strategie: sample traffic in dat bereik, reken backwards
+      
+      // Parse gewenste aankomsttijd bereik
+      const arrivalStartParts = startTime.value.split(':').map(Number)
+      const arrivalEndParts = endTime.value.split(':').map(Number)
+      const arrivalStartMin = (arrivalStartParts[0] || 0) * 60 + (arrivalStartParts[1] || 0)
+      const arrivalEndMin = (arrivalEndParts[0] || 0) * 60 + (arrivalEndParts[1] || 0)
+      
+      // Sample reistijd bij midden van gewenste aankomsttijd
+      const midArrivalMin = Math.floor((arrivalStartMin + arrivalEndMin) / 2)
+      const midH = Math.floor(midArrivalMin / 60)
+      const midM = midArrivalMin % 60
+      const sampleTime = `${String(midH).padStart(2, '0')}:${String(midM).padStart(2, '0')}`
+      
+      // Haal reistijd op voor sample tijd
+      const sampleDuration = await fetchTravelTime(
         selectedDay.value,
-        slot,
+        sampleTime,
         fromLocation.value,
         toLocation.value
       )
-      travelTimes.value.push({ time: slot, duration })
+      
+      // Reken backwards: eerste mogelijke vertrektijd
+      // Vroegste aankomst = arrivalStartMin, trek reistijd + ruime buffer af
+      const estimatedDepartMin = arrivalStartMin - sampleDuration - 90 // 1.5 uur buffer om zeker te zijn
+      
+      // Zoek eerste vertrektijd die binnen bereik aankomt
+      let currentDepartMin = Math.max(0, estimatedDepartMin)
+      let foundFirst = false
+      let firstValidDepartMin = currentDepartMin
+      
+      while (currentDepartMin <= arrivalEndMin + 60) { // tot 1 uur na eind
+        const dH = Math.floor(currentDepartMin / 60)
+        const dM = currentDepartMin % 60
+        const departTime = `${String(dH).padStart(2, '0')}:${String(dM).padStart(2, '0')}`
+        
+        const duration = await fetchTravelTime(
+          selectedDay.value,
+          departTime,
+          fromLocation.value,
+          toLocation.value
+        )
+        
+        const arrivalMin = currentDepartMin + duration
+        const aH = Math.floor(arrivalMin / 60) % 24
+        const aM = arrivalMin % 60
+        const arrivalTimeStr = `${String(aH).padStart(2, '0')}:${String(aM).padStart(2, '0')}`
+        
+        // Check of aankomst binnen bereik valt
+        const isInRange = arrivalMin >= arrivalStartMin && arrivalMin <= arrivalEndMin
+        
+        if (isInRange) {
+          if (!foundFirst) {
+            foundFirst = true
+            firstValidDepartMin = currentDepartMin
+          }
+          
+          travelTimes.value.push({
+            time: departTime,
+            duration: duration,
+            arrivalTime: arrivalTimeStr
+          } as any)
+        } else if (foundFirst) {
+          // We zijn buiten bereik, stop
+          break
+        }
+        
+        currentDepartMin += 5
+      }
     }
 
-    // Find the best time(s) - lowest duration
+    // Find the best time(s)
     if (travelTimes.value.length > 0) {
-      const minDuration = Math.min(...travelTimes.value.map((t) => t.duration))
-      bestTimes.value = travelTimes.value
-        .filter((t) => t.duration === minDuration)
-        .map((t) => t.time)
+      if (timeMode.value === 'departure') {
+        // Laagste reistijd
+        const minDuration = Math.min(...travelTimes.value.map((t) => t.duration))
+        bestTimes.value = travelTimes.value
+          .filter((t) => t.duration === minDuration)
+          .map((t) => t.time)
+      } else {
+        // Vroegste vertrektijd die binnen bereik aankomt
+        bestTimes.value = travelTimes.value.length > 0 && travelTimes.value[0]
+          ? [travelTimes.value[0].time]
+          : []
+      }
       
       // Save to recent searches
       addToRecentSearches(fromLocation.value, toLocation.value)
@@ -922,6 +1006,122 @@ const moneySaved = computed(() => {
   return (litersUsed * 1.80).toFixed(2)
 })
 
+// Matrix data for journey visualization
+interface MatrixRow {
+  departureTime: string
+  arrivalTime: string
+  duration: number
+  color: string
+  startPercent: number
+  widthPercent: number
+}
+
+const matrixData = computed((): MatrixRow[] => {
+  if (travelTimes.value.length === 0) return []
+  
+  const durations = travelTimes.value.map((t) => t.duration)
+  const max = Math.max(...durations)
+  const min = Math.min(...durations)
+  const avg = Math.round(durations.reduce((sum, d) => sum + d, 0) / durations.length)
+  
+  // Calculate thresholds (same as chart)
+  const redThreshold = max - ((max - avg) / 2)
+  const orangeThreshold = avg - ((avg - min) / 2)
+  
+  // Parse times to get all time points for axis
+  const allTimes = new Set<string>()
+  
+  const rows: MatrixRow[] = travelTimes.value.map((item) => {
+    const [depHour, depMin] = item.time.split(':').map(Number)
+    const depMinutes = (depHour || 0) * 60 + (depMin || 0)
+    
+    // Calculate arrival time
+    const arrMinutes = depMinutes + item.duration
+    const arrHour = Math.floor(arrMinutes / 60) % 24
+    const arrMin = arrMinutes % 60
+    const arrivalTime = `${String(arrHour).padStart(2, '0')}:${String(arrMin).padStart(2, '0')}`
+    
+    allTimes.add(item.time)
+    allTimes.add(arrivalTime)
+    
+    // Determine color based on duration
+    let color = '#42b983' // Green
+    if (item.duration >= redThreshold) {
+      color = '#ff6b6b' // Red
+    } else if (item.duration >= orangeThreshold) {
+      color = '#ffa500' // Orange
+    }
+    
+    return {
+      departureTime: item.time,
+      arrivalTime,
+      duration: item.duration,
+      color,
+      startPercent: 0,
+      widthPercent: 0
+    }
+  })
+  
+  // Get min/max times for axis
+  const sortedTimes = Array.from(allTimes).sort((a, b) => {
+    const [aH, aM] = a.split(':').map(Number)
+    const [bH, bM] = b.split(':').map(Number)
+    return ((aH || 0) * 60 + (aM || 0)) - ((bH || 0) * 60 + (bM || 0))
+  })
+  
+  const minTimeMinutes = (() => {
+    const [h, m] = sortedTimes[0]!.split(':').map(Number)
+    return (h || 0) * 60 + (m || 0)
+  })()
+  
+  const maxTimeMinutes = (() => {
+    const [h, m] = sortedTimes[sortedTimes.length - 1]!.split(':').map(Number)
+    return (h || 0) * 60 + (m || 0)
+  })()
+  
+  const totalRange = maxTimeMinutes - minTimeMinutes
+  
+  // Calculate positions for bars
+  rows.forEach(row => {
+    const [depH, depM] = row.departureTime.split(':').map(Number)
+    const depMinutes = (depH || 0) * 60 + (depM || 0)
+    
+    const [arrH, arrM] = row.arrivalTime.split(':').map(Number)
+    const arrMinutes = (arrH || 0) * 60 + (arrM || 0)
+    
+    row.startPercent = ((depMinutes - minTimeMinutes) / totalRange) * 100
+    row.widthPercent = ((arrMinutes - depMinutes) / totalRange) * 100
+  })
+  
+  return rows
+})
+
+// Time labels for matrix axis
+const matrixTimeLabels = computed((): string[] => {
+  if (travelTimes.value.length === 0) return []
+  
+  const allTimes = new Set<string>()
+  
+  travelTimes.value.forEach(item => {
+    const [depHour, depMin] = item.time.split(':').map(Number)
+    const depMinutes = (depHour || 0) * 60 + (depMin || 0)
+    
+    const arrMinutes = depMinutes + item.duration
+    const arrHour = Math.floor(arrMinutes / 60) % 24
+    const arrMin = arrMinutes % 60
+    const arrivalTime = `${String(arrHour).padStart(2, '0')}:${String(arrMin).padStart(2, '0')}`
+    
+    allTimes.add(item.time)
+    allTimes.add(arrivalTime)
+  })
+  
+  return Array.from(allTimes).sort((a, b) => {
+    const [aH, aM] = a.split(':').map(Number)
+    const [bH, bM] = b.split(':').map(Number)
+    return ((aH || 0) * 60 + (aM || 0)) - ((bH || 0) * 60 + (bM || 0))
+  })
+})
+
 // Chart data with dynamic colors
 const chartData = computed(() => {
   const durations = travelTimes.value.map((t) => t.duration)
@@ -943,25 +1143,27 @@ const chartData = computed(() => {
   
   // Assign colors to each point
   const pointColors = durations.map(duration => {
-    if (duration >= redThreshold) return '#ff6b6b' // Red
-    if (duration >= orangeThreshold) return '#ffa500' // Orange
-    return '#42b983' // Green
+    if (duration >= redThreshold) return '#e53935' // Darker Red
+    if (duration >= orangeThreshold) return '#fb8c00' // Darker Orange
+    return '#43a047' // Darker Green
   })
   
   const pointBorderColors = durations.map(duration => {
-    if (duration >= redThreshold) return '#ff4444'
-    if (duration >= orangeThreshold) return '#ff8800'
-    return '#2d9968'
+    if (duration >= redThreshold) return '#c62828'
+    if (duration >= orangeThreshold) return '#ef6c00'
+    return '#2e7d32'
   })
   
   return {
-    labels: travelTimes.value.map((t) => t.time),
+    labels: timeMode.value === 'arrival' 
+      ? travelTimes.value.map((t: any) => `${t.time} → ${t.arrivalTime || ''}`)
+      : travelTimes.value.map((t) => t.time),
     datasets: [
       {
-        label: 'Travel Time (minutes)',
+        label: timeMode.value === 'arrival' ? 'Vertrektijd → Aankomsttijd' : 'Reistijd (minuten)',
         data: durations,
-        borderColor: '#999',
-        backgroundColor: 'rgba(150, 150, 150, 0.1)',
+        borderColor: '#424242',
+        backgroundColor: 'rgba(66, 66, 66, 0.15)',
         tension: 0.4,
         pointRadius: 8,
         pointHoverRadius: 12,
@@ -974,20 +1176,30 @@ const chartData = computed(() => {
   }
 })
 
-const chartOptions: ChartOptions<'line'> = {
+const chartOptions = computed<ChartOptions<'line'>>(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
     legend: {
       display: true,
-      position: 'top'
+      position: 'top' as const,
+      labels: {
+        color: '#212121',
+        font: {
+          size: 13,
+          weight: 'bold' as const
+        }
+      }
     },
     title: {
       display: true,
-      text: '🚦 Traffic Pattern Analysis',
+      text: timeMode.value === 'departure' 
+        ? '🚦 Vergelijk vertrektijden' 
+        : '⏱️ Reistijd per vertrektijd',
+      color: '#212121',
       font: {
-        size: 16,
-        weight: 'bold'
+        size: 18,
+        weight: 'bold' as const
       }
     }
   },
@@ -996,17 +1208,47 @@ const chartOptions: ChartOptions<'line'> = {
       beginAtZero: false,
       title: {
         display: true,
-        text: 'Reistijd (minuten)'
+        text: 'Reistijd (minuten)',
+        color: '#424242',
+        font: {
+          size: 14,
+          weight: 'bold' as const
+        }
+      },
+      ticks: {
+        color: '#424242',
+        font: {
+          size: 12
+        }
+      },
+      grid: {
+        color: 'rgba(0, 0, 0, 0.1)'
       }
     },
     x: {
       title: {
         display: true,
-        text: 'Vertrektijd'
+        text: timeMode.value === 'departure' 
+          ? 'Vertrektijd' 
+          : 'Vertrektijd',
+        color: '#424242',
+        font: {
+          size: 14,
+          weight: 'bold' as const
+        }
+      },
+      ticks: {
+        color: '#424242',
+        font: {
+          size: 12
+        }
+      },
+      grid: {
+        color: 'rgba(0, 0, 0, 0.1)'
       }
     }
   }
-}
+}))
 </script>
 
 <template>
@@ -1205,14 +1447,39 @@ const chartOptions: ChartOptions<'line'> = {
         </div>
 
         <div class="form-group">
-          <label for="start-time">Van:</label>
+          <label for="start-time">{{ timeMode === 'arrival' ? 'Aankomen vanaf:' : 'Van:' }}</label>
           <input id="start-time" v-model="startTime" type="time" />
         </div>
 
         <div class="form-group">
-          <label for="end-time">Tot:</label>
+          <label for="end-time">{{ timeMode === 'arrival' ? 'Aankomen tot:' : 'Tot:' }}</label>
           <input id="end-time" v-model="endTime" type="time" />
         </div>
+      </div>
+
+      <!-- Time mode toggle -->
+      <div class="time-mode-toggle">
+        <label class="toggle-label">⏰ Wat wil je analyseren?</label>
+        <div class="toggle-buttons">
+          <button 
+            @click="timeMode = 'departure'"
+            :class="['toggle-btn', { active: timeMode === 'departure' }]"
+          >
+            🚗 Ik vertrek tussen deze tijden
+          </button>
+          <button 
+            @click="timeMode = 'arrival'"
+            :class="['toggle-btn', { active: timeMode === 'arrival' }]"
+          >
+            🏁 Ik wil tussen deze tijden aankomen
+          </button>
+        </div>
+        <p class="toggle-description">
+          {{ timeMode === 'departure' 
+            ? '⏱️ Vind de beste tijd om te vertrekken (kortste reistijd)' 
+            : '🎯 Bereken wanneer je moet vertrekken om op tijd aan te komen' 
+          }}
+        </p>
       </div>
 
       <button @click="analyzeTravelTimes" :disabled="isLoading" class="analyze-btn">
@@ -1364,7 +1631,7 @@ const chartOptions: ChartOptions<'line'> = {
 
     <div v-if="!isLoading && !hasError && travelTimes.length > 0" class="results">
       <div class="best-times">
-        <h2>🎯 Your Perfect Escape Time</h2>
+        <h2>{{ timeMode === 'departure' ? '🎯 Beste Vertrektijd' : '🏁 Wanneer Vertrekken?' }}</h2>
         <p class="route-info">
           {{ fromLocation.split(',')[0] }} → {{ toLocation.split(',')[0] }}
         </p>
@@ -1373,8 +1640,11 @@ const chartOptions: ChartOptions<'line'> = {
             {{ time }}
           </span>
         </div>
-        <p class="min-duration">
-          ⚡ Travel time: {{ Math.min(...travelTimes.map((t) => t.duration)) }} minutes
+        <p v-if="timeMode === 'departure'" class="min-duration">
+          ⚡ Kortste reistijd: {{ Math.min(...travelTimes.map((t) => t.duration)) }} minuten
+        </p>
+        <p v-else class="min-duration">
+          ⚡ Vroegste vertrektijd om op tijd aan te komen
         </p>
 
         <!-- Money & time saved -->
@@ -1422,6 +1692,69 @@ const chartOptions: ChartOptions<'line'> = {
       <div class="chart-container">
         <div>
           <Line :data="chartData" :options="chartOptions" />
+        </div>
+      </div>
+
+      <!-- Journey Time Matrix -->
+      <div class="matrix-container">
+        <div class="matrix-header">
+          <h3>📊 Reistijd Visualisatie</h3>
+          <p class="matrix-description">
+            Elk balkje toont de reis van vertrektijd (links) naar aankomsttijd (rechts). 
+            Langere balken = langere reistijd.
+          </p>
+        </div>
+        <div class="matrix-content">
+          <div class="matrix-y-axis">
+            <div class="axis-label-y">Vertrektijd</div>
+            <div class="matrix-y-labels">
+              <div v-for="item in travelTimes" :key="item.time" class="matrix-y-label">
+                {{ item.time }}
+              </div>
+            </div>
+          </div>
+          <div class="matrix-chart-area">
+            <div class="matrix-x-axis">
+              <div 
+                v-for="label in matrixTimeLabels" 
+                :key="label" 
+                class="matrix-x-label"
+              >
+                {{ label }}
+              </div>
+            </div>
+            <div class="matrix-bars">
+              <div v-for="row in matrixData" :key="row.departureTime" class="matrix-row">
+                <div 
+                  class="matrix-bar"
+                  :style="{
+                    left: `${row.startPercent}%`,
+                    width: `${row.widthPercent}%`,
+                    background: `linear-gradient(90deg, ${row.color} 0%, ${row.color}dd 100%)`
+                  }"
+                  :title="`${row.departureTime} → ${row.arrivalTime} (${row.duration} min)`"
+                >
+                  <span class="bar-label">{{ row.duration }} min</span>
+                  <div class="bar-glow" :style="{ background: row.color }"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="matrix-x-axis-label">Aankomsttijd</div>
+        <div class="matrix-legend">
+          <div class="legend-item">
+            <div class="legend-color" style="background: #42b983"></div>
+            <span>Snelste tijd</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: #ffa500"></div>
+            <span>Gemiddeld</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: #ff6b6b"></div>
+            <span>Langzaamste tijd</span>
+          </div>
         </div>
       </div>
     </div>
@@ -2412,6 +2745,69 @@ h1 {
   gap: 1rem;
 }
 
+/* Time mode toggle */
+.time-mode-toggle {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+  border-radius: 12px;
+  border: 2px solid #dde2e8;
+}
+
+.toggle-label {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-weight: 700;
+  color: #333;
+  font-size: 1rem;
+}
+
+.toggle-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.toggle-btn {
+  background: white;
+  border: 2px solid #dde2e8;
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  color: #555;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.toggle-btn:hover {
+  border-color: #42b983;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(66, 185, 131, 0.2);
+}
+
+.toggle-btn.active {
+  background: linear-gradient(135deg, #42b983 0%, #35956f 100%);
+  color: white;
+  border-color: #42b983;
+  box-shadow: 0 4px 12px rgba(66, 185, 131, 0.3);
+}
+
+.toggle-description {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #666;
+  text-align: center;
+  font-style: italic;
+  padding-top: 0.5rem;
+  border-top: 1px solid #dde2e8;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -2884,6 +3280,223 @@ input[type='text']::placeholder {
   font-size: 0.9rem;
 }
 
+/* Journey Time Matrix Styles */
+.matrix-container {
+  background: white;
+  padding: 2rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  margin-top: 2rem;
+  animation: fadeIn 0.5s 0.2s backwards;
+}
+
+.matrix-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.matrix-header h3 {
+  margin: 0 0 0.5rem 0;
+  color: #ff6b6b;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.matrix-description {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.matrix-content {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.matrix-y-axis {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 2.5rem;
+}
+
+.axis-label-y {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ff6b6b;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  margin-right: 0.5rem;
+  text-align: center;
+  letter-spacing: 2px;
+}
+
+.matrix-y-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.matrix-y-label {
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #333;
+  background: linear-gradient(90deg, transparent 0%, #f8f8f8 100%);
+  border-radius: 8px 0 0 8px;
+}
+
+.matrix-chart-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.matrix-x-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  padding: 0 0.5rem;
+  height: 2rem;
+  position: relative;
+}
+
+.matrix-x-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #666;
+  transform: rotate(-45deg);
+  transform-origin: left center;
+  white-space: nowrap;
+  position: absolute;
+}
+
+.matrix-x-label:first-child {
+  left: 0;
+}
+
+.matrix-x-label:last-child {
+  right: 0;
+  left: auto;
+  transform-origin: right center;
+}
+
+.matrix-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  position: relative;
+  background: linear-gradient(90deg, #f9f9f9 0%, #ffffff 50%, #f9f9f9 100%);
+  border-radius: 12px;
+  padding: 0.5rem;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.matrix-row {
+  height: 50px;
+  position: relative;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.matrix-bar {
+  position: absolute;
+  height: 100%;
+  top: 0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  position: relative;
+}
+
+.matrix-bar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  z-index: 10;
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
+.bar-label {
+  position: relative;
+  z-index: 2;
+  color: white;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  padding: 0 0.5rem;
+}
+
+.bar-glow {
+  position: absolute;
+  top: 0;
+  left: -50%;
+  width: 50%;
+  height: 100%;
+  opacity: 0.3;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% {
+    left: -50%;
+  }
+  50% {
+    left: 150%;
+  }
+}
+
+.matrix-x-axis-label {
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ff6b6b;
+  margin-top: 1rem;
+  letter-spacing: 2px;
+}
+
+.matrix-legend {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid #f0f0f0;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.legend-color {
+  width: 32px;
+  height: 16px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.legend-item span {
+  font-size: 0.9rem;
+  color: #666;
+  font-weight: 600;
+}
+
 @media (max-width: 768px) {
   .header-content {
     gap: 0.75rem;
@@ -2927,6 +3540,23 @@ input[type='text']::placeholder {
     margin: 0.5rem auto;
   }
 
+  .time-mode-toggle {
+    margin: 1rem 0;
+  }
+
+  .toggle-buttons {
+    gap: 0.5rem;
+  }
+
+  .toggle-btn {
+    padding: 0.7rem 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .toggle-description {
+    font-size: 0.75rem;
+  }
+
   .savings-info {
     flex-direction: column;
   }
@@ -2938,6 +3568,35 @@ input[type='text']::placeholder {
   .alarm-notification {
     left: 1rem;
     right: 1rem;
+  }
+  
+  .matrix-container {
+    padding: 1rem;
+  }
+  
+  .matrix-content {
+    gap: 0.5rem;
+  }
+  
+  .matrix-y-label {
+    font-size: 0.8rem;
+    height: 40px;
+  }
+  
+  .matrix-row {
+    height: 40px;
+  }
+  
+  .bar-label {
+    font-size: 0.75rem;
+  }
+  
+  .matrix-legend {
+    gap: 1rem;
+  }
+  
+  .axis-label-y {
+    font-size: 0.75rem;
   }
 }
 </style>

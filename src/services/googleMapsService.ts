@@ -21,8 +21,8 @@ interface CachedResult {
 /**
  * Genereer cache key voor een specifieke route en tijd
  */
-function getCacheKey(origin: string, destination: string, departureTime: Date): string {
-  const timeKey = `${departureTime.getDay()}-${departureTime.getHours()}-${departureTime.getMinutes()}`
+function getCacheKey(origin: string, destination: string, targetTime: Date, mode: 'departure' | 'arrival'): string {
+  const timeKey = `${targetTime.getDay()}-${targetTime.getHours()}-${targetTime.getMinutes()}-${mode}`
   return `${CACHE_KEY_PREFIX}${origin}_${destination}_${timeKey}`
 }
 
@@ -72,15 +72,16 @@ function saveToCache(cacheKey: string, data: TravelTimeResult): void {
 export async function getTravelTime(
   origin: string,
   destination: string,
-  departureTime: Date,
-  dayOfWeek: number
+  targetTime: Date,
+  dayOfWeek: number,
+  mode: 'departure' | 'arrival' = 'departure'
 ): Promise<TravelTimeResult> {
   if (!API_KEY || API_KEY === 'your_api_key_here') {
     throw new Error('Google Maps API key niet geconfigureerd. Zie GOOGLE_MAPS_SETUP.md')
   }
 
   // Check cache eerst
-  const cacheKey = getCacheKey(origin, destination, departureTime)
+  const cacheKey = getCacheKey(origin, destination, targetTime, mode)
   const cached = getFromCache(cacheKey)
   if (cached) {
     return cached
@@ -91,12 +92,15 @@ export async function getTravelTime(
     const google = (window as any).google
     const directionsService = new google.maps.DirectionsService()
 
-    const request = {
+    // Note: Google Maps API doesn't support arrivalTime with traffic data for driving
+    // For both modes, we use departureTime. In 'arrival' mode, the interpretation is:
+    // "If I leave at this time, when will I arrive?" (same as departure mode)
+    const request: any = {
       origin,
       destination,
       travelMode: google.maps.TravelMode.DRIVING,
       drivingOptions: {
-        departureTime,
+        departureTime: targetTime,
         trafficModel: google.maps.TrafficModel.BEST_GUESS
       }
     }
