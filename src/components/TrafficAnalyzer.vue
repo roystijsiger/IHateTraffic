@@ -13,7 +13,6 @@ import {
   type ChartOptions
 } from 'chart.js'
 import { getTravelTime, createDepartureTime } from '@/services/googleMapsService'
-import { requestNotificationPermission, scheduleAlarmNotification, onMessageListener } from '@/services/firebaseService'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
@@ -691,33 +690,14 @@ const openAlarmSelector = () => {
 }
 
 const setAlarm = async (time: string) => {
+  console.log('🔔 Setting alarm for:', time)
   alarmTime.value = time
   showAlarmSelector.value = false
   
-  // Request notification permission FIRST
-  if ('Notification' in window && Notification.permission === 'default') {
-    const permission = await Notification.requestPermission()
-    notificationsEnabled.value = permission === 'granted'
-    
-    if (permission === 'granted') {
-      showLocationStatus.value = true
-      locationStatus.value = '✅ Notifications enabled!'
-      locationStatusType.value = 'success'
-      setTimeout(() => showLocationStatus.value = false, 3000)
-    } else {
-      showLocationStatus.value = true
-      locationStatus.value = '⚠️ Notifications blocked - you will only get an alert'
-      locationStatusType.value = 'error'
-      setTimeout(() => showLocationStatus.value = false, 5000)
-    }
-  } else if ('Notification' in window && Notification.permission === 'granted') {
-    notificationsEnabled.value = true
-  }
+  // Parse time
+  const [hours, minutes] = time.split(':').map(Number)
   
-  showAlarmSet.value = true
-  setTimeout(() => showAlarmSet.value = false, 3000)
-  
-  // Save alarm to localStorage
+  // Save alarm to localStorage for tracking
   const newAlarm: SavedAlarm = {
     time: time,
     repeat: alarmRepeat.value,
@@ -729,55 +709,64 @@ const setAlarm = async (time: string) => {
   savedAlarms.value.push(newAlarm)
   localStorage.setItem('savedAlarms', JSON.stringify(savedAlarms.value))
   
-  // Schedule notification via Service Worker (for when app is closed)
-  if ('serviceWorker' in navigator && notificationsEnabled.value) {
-    try {
-      const registration = await navigator.serviceWorker.ready
-      await scheduleNotificationViaServiceWorker(time, registration)
-      
-      // Also use firebaseService for Notification Triggers API
-      await scheduleAlarmNotification(time, alarmRepeat.value, fromLocation.value, toLocation.value)
-    } catch (error) {
-      console.log('Service Worker scheduling not available:', error)
-    }
-  }
+  // Create alarm message
+  const message = `Leave from ${fromLocation.value.split(',')[0]} to ${toLocation.value.split(',')[0]}`
   
-  // Fallback: Schedule alarm based on repeat setting (for when app is open)
-  scheduleAlarmWithRepeat(time)
+  // Try to open native clock app with alarm
+  const isAndroid = /android/i.test(navigator.userAgent)
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
+  const isWindows = /Windows/.test(navigator.userAgent)
+  
+  try {
+    if (isAndroid) {
+      // Android Intent to open clock app with pre-filled alarm
+      const intentUrl = `intent://alarm/#Intent;` +
+        `scheme=clock;` +
+        `action=android.intent.action.SET_ALARM;` +
+        `i.hour=${hours};` +
+        `i.minutes=${minutes};` +
+        `S.message=${encodeURIComponent(message)};` +
+        `b.skip_ui=false;` +
+        `end`
+      
+      console.log('📱 Opening Android clock app...', intentUrl)
+      window.location.href = intentUrl
+      
+    } else if (isWindows) {
+      // Windows: Open Alarms & Clock app
+      console.log('🖥️ Opening Windows Alarms & Clock app...')
+      window.location.href = 'ms-clock:'
+      
+      // Windows protocol can't pre-fill alarm data, show instructions
+      setTimeout(() => {
+        alert(`⏰ Alarms & Clock app opened.\n\nPlease set alarm for: ${time}\nReminder: ${message}`)
+      }, 500)
+      
+    } else if (isIOS) {
+      // iOS: Open clock app (can't pre-fill alarm unfortunately)
+      console.log('📱 Opening iOS clock app...')
+      window.location.href = 'clock-alarm://'
+      
+      // Fallback if that doesn't work
+      setTimeout(() => {
+        alert(`⏰ Set alarm manually in Clock app:\n${time}\n"${message}"`)
+      }, 1000)
+      
+    } else {
+      // Other Desktop: Show instructions
+      alert(`⏰ Set alarm in your system:\nTime: ${time}\nMessage: ${message}`)
+    }
+    
+    showAlarmSet.value = true
+    setTimeout(() => showAlarmSet.value = false, 5000)
+    
+  } catch (error) {
+    console.error('Failed to open clock app:', error)
+    alert(`⏰ Please set alarm manually:\nTime: ${time}\n"${message}"`)
+  }
 }
 
-const scheduleNotificationViaServiceWorker = async (time: string, registration: ServiceWorkerRegistration) => {
-  const [hours, minutes] = time.split(':').map(Number)
-  const scheduledDate = new Date()
-  scheduledDate.setHours(hours || 0, minutes || 0, 0, 0)
-  
-  // If time has passed today, schedule for tomorrow
-  if (scheduledDate <= new Date()) {
-    scheduledDate.setDate(scheduledDate.getDate() + 1)
-  }
-  
-  const scheduledTime = scheduledDate.getTime()
-  
-  // Try using Notification Triggers API via service worker
-  const messageChannel = new MessageChannel()
-  
-  messageChannel.port1.onmessage = (event) => {
-    if (event.data.success === false) {
-      console.log('Notification Triggers API not supported, using fallback')
-    }
-  }
-  
-  registration.active?.postMessage({
-    type: 'SCHEDULE_NOTIFICATION',
-    time: time,
-    title: '⏰ Time to leave!',
-    body: `Beat the traffic! Depart at ${time} for ${fromLocation.value} → ${toLocation.value}`,
-    tag: `alarm-${Date.now()}`,
-    scheduledTime: scheduledTime
-  }, [messageChannel.port2])
-  
-  console.log(`Scheduled notification via Service Worker for ${scheduledDate.toLocaleString()}`)
-}
+
 
 const scheduleAlarmWithRepeat = (time: string) => {
   // Clear existing alarms
@@ -3151,12 +3140,12 @@ input[type='text']::placeholder {
 
 .time-badge {
   background: white;
-  color: #ff6b6b;
+  color: #42b983;
   padding: 0.6rem 1.2rem;
   border-radius: 25px;
   font-size: 1.4rem;
   font-weight: 900;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 15px rgba(66, 185, 131, 0.3);
   border: 3px solid rgba(255, 255, 255, 0.3);
 }
 
