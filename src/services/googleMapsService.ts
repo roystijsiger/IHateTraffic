@@ -162,10 +162,16 @@ export function createDepartureTime(dayName: string, timeString: string): Date {
   let daysToAdd = targetDay - currentDay
 
   if (daysToAdd < 0) {
+    // Target day is eerder in de week, neem volgende week
     daysToAdd += 7
-  } else if (daysToAdd === 0 && now.getTime() > result.getTime()) {
-    daysToAdd = 7
+  } else if (daysToAdd === 0) {
+    // Zelfde dag: alleen volgende week als tijd al geweest is
+    if (now.getTime() > result.getTime()) {
+      daysToAdd = 7
+    }
+    // Anders: gebruik VANDAAG (daysToAdd blijft 0)
   }
+  // Als daysToAdd > 0: gebruik die dag deze week
 
   result.setDate(result.getDate() + daysToAdd)
 

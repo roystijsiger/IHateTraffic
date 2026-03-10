@@ -19,14 +19,19 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 
+// Get current day name in Dutch
+const getCurrentDayName = (): string => {
+  const days = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag']
+  return days[new Date().getDay()] || 'maandag'
+}
+
 // Form inputs
-const selectedDay = ref<string>('maandag')
+const selectedDay = ref<string>(getCurrentDayName())
 const startTime = ref<string>('07:00')
 const endTime = ref<string>('09:00')
 const fromLocation = ref<string>('')
 const toLocation = ref<string>('')
 const timeMode = ref<'departure' | 'arrival'>('departure') // departure = vertrektijd, arrival = aankomsttijd
-const desiredArrivalTime = ref<string>('09:00') // Gewenste aankomsttijd
 
 // Data
 const travelTimes = ref<{ time: string; duration: number }[]>([])
@@ -408,17 +413,21 @@ const analyzeTravelTimes = async () => {
 
     // Find the best time(s)
     if (travelTimes.value.length > 0) {
+      // Altijd de kortste reistijd vinden
+      const minDuration = Math.min(...travelTimes.value.map((t) => t.duration))
+      
       if (timeMode.value === 'departure') {
-        // Laagste reistijd
-        const minDuration = Math.min(...travelTimes.value.map((t) => t.duration))
         bestTimes.value = travelTimes.value
           .filter((t) => t.duration === minDuration)
           .map((t) => t.time)
       } else {
-        // Vroegste vertrektijd die binnen bereik aankomt
-        bestTimes.value = travelTimes.value.length > 0 && travelTimes.value[0]
-          ? [travelTimes.value[0].time]
-          : []
+        // In arrival mode: toon vertrektijd → aankomsttijd voor beste tijden
+        bestTimes.value = travelTimes.value
+          .filter((t) => t.duration === minDuration)
+          .map((t) => {
+            const arrTime = (t as any).arrivalTime || ''
+            return `${t.time} → ${arrTime}`
+          })
       }
       
       // Save to recent searches
@@ -725,6 +734,9 @@ const setAlarm = async (time: string) => {
     try {
       const registration = await navigator.serviceWorker.ready
       await scheduleNotificationViaServiceWorker(time, registration)
+      
+      // Also use firebaseService for Notification Triggers API
+      await scheduleAlarmNotification(time, alarmRepeat.value, fromLocation.value, toLocation.value)
     } catch (error) {
       console.log('Service Worker scheduling not available:', error)
     }
@@ -1646,11 +1658,8 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
             {{ time }}
           </span>
         </div>
-        <p v-if="timeMode === 'departure'" class="min-duration">
-          ⚡ Kortste reistijd: {{ Math.min(...travelTimes.map((t) => t.duration)) }} minuten
-        </p>
-        <p v-else class="min-duration">
-          ⚡ Vroegste vertrektijd om op tijd aan te komen
+        <p class="min-duration">
+          ⚡ {{ timeMode === 'departure' ? 'Kortste reistijd' : 'Snelste optie' }}: {{ Math.min(...travelTimes.map((t) => t.duration)) }} minuten
         </p>
 
         <!-- Money & time saved -->

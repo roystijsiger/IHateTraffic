@@ -76,7 +76,12 @@ export function onMessageListener(): Promise<any> {
   })
 }
 
-export async function scheduleAlarmNotification(time: string): Promise<void> {
+export async function scheduleAlarmNotification(
+  time: string, 
+  repeat: 'once' | 'daily' | 'weekly' | 'weekdays' = 'once',
+  from: string = '',
+  to: string = ''
+): Promise<void> {
   // Parse tijd
   const [hours, minutes] = time.split(':').map(Number)
   const now = new Date()
@@ -87,18 +92,49 @@ export async function scheduleAlarmNotification(time: string): Promise<void> {
     alarmDate.setDate(alarmDate.getDate() + 1)
   }
   
-  const msUntilAlarm = alarmDate.getTime() - now.getTime()
-  
   // Check notification permission
-  if (Notification.permission === 'granted') {
-    setTimeout(() => {
-      new Notification('⏰ Time to leave!', {
-        body: 'Beat the traffic! It\'s your optimal departure time.',
-        icon: '/icon.png',
-        badge: '/badge.png',
-        tag: 'traffic-alarm',
-        requireInteraction: true
-      })
-    }, msUntilAlarm)
+  if (Notification.permission !== 'granted') {
+    console.error('Notification permission not granted')
+    return
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready
+    
+    // Check of Notification Triggers API beschikbaar is (Android Chrome 83+)
+    if ('showTrigger' in Notification.prototype) {
+      console.log('✅ Using Notification Triggers API for scheduling')
+      
+      // Schedule via Service Worker met trigger
+      await registration.showNotification('⏰ Time to leave!', {
+        body: `Beat the traffic! Vertrek nu van ${from.split(',')[0] || 'je locatie'} naar ${to.split(',')[0] || 'bestemming'}.`,
+        icon: '/icon-192x192.png',
+        badge: '/badge-72x72.png',
+        tag: `traffic-alarm-${time}`,
+        requireInteraction: true,
+        vibrate: [200, 100, 200],
+        showTrigger: new (window as any).TimestampTrigger(alarmDate.getTime())
+      } as any)
+      
+      console.log(`✅ Notification scheduled for: ${alarmDate.toLocaleString()}`)
+      
+    } else {
+      // Fallback voor desktop/iOS: setTimeout (werkt alleen als app open is)
+      console.warn('⚠️ Using setTimeout fallback - only works if app is open')
+      
+      const msUntilAlarm = alarmDate.getTime() - now.getTime()
+      
+      setTimeout(() => {
+        new Notification('⏰ Time to leave!', {
+          body: `Beat the traffic! Vertrek nu van ${from.split(',')[0] || 'je locatie'} naar ${to.split(',')[0] || 'bestemming'}.`,
+          icon: '/icon-192x192.png',
+          badge: '/badge-72x72.png',
+          tag: `traffic-alarm-${time}`,
+          requireInteraction: true
+        })
+      }, msUntilAlarm)
+    }
+  } catch (error) {
+    console.error('Failed to schedule notification:', error)
   }
 }
