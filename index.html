@@ -8,8 +8,8 @@
     <!-- PWA Meta Tags -->
     <meta name="description" content="Beat the traffic! Find the best departure times and avoid traffic jams.">
     <meta name="theme-color" content="#ff6b6b">
-    <link rel="manifest" href="/manifest.json">
-    <link rel="apple-touch-icon" href="/icon-192x192.png">
+    <link rel="manifest" href="/IHateTraffic/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/IHateTraffic/icon-192x192.svg">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Traffic App">
@@ -20,20 +20,5 @@
   <body>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
-    
-    <!-- Firebase Service Worker registratie -->
-    <script>
-      if ('serviceWorker' in navigator) {
-        // Only register in production or if file exists
-        navigator.serviceWorker.register('/firebase-messaging-sw.js')
-          .then((registration) => {
-            console.log('Firebase Service Worker registered:', registration);
-          })
-          .catch((error) => {
-            // Silently fail in development - service worker is optional
-            console.log('Service Worker not available (this is OK in development):', error.message);
-          });
-      }
-    </script>
   </body>
 </html>

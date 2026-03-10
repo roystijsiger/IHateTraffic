@@ -81,6 +81,24 @@ const loadingMessages = [
 ]
 const currentLoadingMessage = ref<string>(loadingMessages[0] || 'Loading...')
 
+// Function to get current time rounded to next 5 minutes
+const getRoundedTime = (addHours: number = 0): string => {
+  const now = new Date()
+  now.setHours(now.getHours() + addHours)
+  const minutes = now.getMinutes()
+  const roundedMinutes = Math.ceil(minutes / 5) * 5
+  now.setMinutes(roundedMinutes)
+  now.setSeconds(0)
+  
+  const hours = now.getHours().toString().padStart(2, '0')
+  const mins = now.getMinutes().toString().padStart(2, '0')
+  return `${hours}:${mins}`
+}
+
+// Set default times to now and now + 2 hours
+startTime.value = getRoundedTime(0)
+endTime.value = getRoundedTime(2)
+
 // Load saved data from localStorage
 onMounted(async () => {
   const saved = localStorage.getItem('addressBook')
@@ -1201,10 +1219,15 @@ const chartOptions: ChartOptions<'line'> = {
         {{ isLoading ? currentLoadingMessage : '🚀 Beat the traffic!' }}
       </button>
       
-      <!-- Test notification button -->
-      <button @click="testNotification" class="test-notification-btn" title="Test of notificaties werken">
-        🔔 Test notificatie
-      </button>
+      <!-- Test buttons -->
+      <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+        <button @click="testNotification" class="test-notification-btn" title="Test of notificaties werken">
+          🔔 Test notificatie
+        </button>
+        <button @click="showInstallPrompt = !showInstallPrompt" class="test-notification-btn" title="Toon/verberg PWA install banner">
+          📱 Toggle PWA
+        </button>
+      </div>
     </div>
 
     <div v-if="isLoading" class="loading">

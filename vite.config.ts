@@ -13,7 +13,7 @@ export default defineConfig({
     vueDevTools(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'icon-192x192.png', 'icon-512x512.png'],
+      includeAssets: ['favicon.ico', 'icon-192x192.svg', 'icon-512x512.svg'],
       manifest: {
         name: 'I Hate Traffic Jams',
         short_name: 'Traffic App',
@@ -26,15 +26,15 @@ export default defineConfig({
         start_url: '/IHateTraffic/',
         icons: [
           {
-            src: '/IHateTraffic/icon-192x192.png',
+            src: '/IHateTraffic/icon-192x192.svg',
             sizes: '192x192',
-            type: 'image/png',
+            type: 'image/svg+xml',
             purpose: 'any maskable'
           },
           {
-            src: '/IHateTraffic/icon-512x512.png',
+            src: '/IHateTraffic/icon-512x512.svg',
             sizes: '512x512',
-            type: 'image/png',
+            type: 'image/svg+xml',
             purpose: 'any maskable'
           }
         ]
