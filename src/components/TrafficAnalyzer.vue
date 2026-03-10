@@ -150,20 +150,6 @@ onMounted(async () => {
     locationStatusType.value = 'success'
     setTimeout(() => showLocationStatus.value = false, 5000)
   })
-  
-  // Listen for foreground messages
-  try {
-    onMessageListener().then((payload) => {
-      console.log('Received foreground message:', payload)
-      // Show in-app notification
-      showLocationStatus.value = true
-      locationStatus.value = payload.notification?.body || 'New notification'
-      locationStatusType.value = 'info'
-      setTimeout(() => showLocationStatus.value = false, 5000)
-    })
-  } catch (error) {
-    console.error('Error setting up message listener:', error)
-  }
 })
 
 // Load Google Maps API dynamically
