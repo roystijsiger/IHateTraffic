@@ -368,7 +368,6 @@ const analyzeTravelTimes = async () => {
       // Zoek eerste vertrektijd die binnen bereik aankomt
       let currentDepartMin = Math.max(0, estimatedDepartMin)
       let foundFirst = false
-      let firstValidDepartMin = currentDepartMin
       
       while (currentDepartMin <= arrivalEndMin + 60) { // tot 1 uur na eind
         const dH = Math.floor(currentDepartMin / 60)
@@ -391,20 +390,17 @@ const analyzeTravelTimes = async () => {
         const isInRange = arrivalMin >= arrivalStartMin && arrivalMin <= arrivalEndMin
         
         if (isInRange) {
-          if (!foundFirst) {
-            foundFirst = true
-            firstValidDepartMin = currentDepartMin
-          }
-          
+          foundFirst = true
           travelTimes.value.push({
             time: departTime,
             duration: duration,
             arrivalTime: arrivalTimeStr
           } as any)
-        } else if (foundFirst) {
-          // We zijn buiten bereik, stop
+        } else if (foundFirst && arrivalMin > arrivalEndMin) {
+          // We zijn NA het bereik, stop
           break
         }
+        // Als we VOOR het bereik zijn (arrivalMin < arrivalStartMin), blijf zoeken
         
         currentDepartMin += 5
       }
@@ -1035,11 +1031,17 @@ const matrixData = computed((): MatrixRow[] => {
     const [depHour, depMin] = item.time.split(':').map(Number)
     const depMinutes = (depHour || 0) * 60 + (depMin || 0)
     
-    // Calculate arrival time
-    const arrMinutes = depMinutes + item.duration
-    const arrHour = Math.floor(arrMinutes / 60) % 24
-    const arrMin = arrMinutes % 60
-    const arrivalTime = `${String(arrHour).padStart(2, '0')}:${String(arrMin).padStart(2, '0')}`
+    // Use arrivalTime if available (arrival mode), otherwise calculate
+    let arrivalTime: string
+    if ((item as any).arrivalTime) {
+      arrivalTime = (item as any).arrivalTime
+    } else {
+      // Calculate arrival time
+      const arrMinutes = depMinutes + item.duration
+      const arrHour = Math.floor(arrMinutes / 60) % 24
+      const arrMin = arrMinutes % 60
+      arrivalTime = `${String(arrHour).padStart(2, '0')}:${String(arrMin).padStart(2, '0')}`
+    }
     
     allTimes.add(item.time)
     allTimes.add(arrivalTime)
@@ -1103,16 +1105,20 @@ const matrixTimeLabels = computed((): string[] => {
   const allTimes = new Set<string>()
   
   travelTimes.value.forEach(item => {
-    const [depHour, depMin] = item.time.split(':').map(Number)
-    const depMinutes = (depHour || 0) * 60 + (depMin || 0)
-    
-    const arrMinutes = depMinutes + item.duration
-    const arrHour = Math.floor(arrMinutes / 60) % 24
-    const arrMin = arrMinutes % 60
-    const arrivalTime = `${String(arrHour).padStart(2, '0')}:${String(arrMin).padStart(2, '0')}`
-    
     allTimes.add(item.time)
-    allTimes.add(arrivalTime)
+    
+    // Use arrivalTime if available (arrival mode), otherwise calculate
+    if ((item as any).arrivalTime) {
+      allTimes.add((item as any).arrivalTime)
+    } else {
+      const [depHour, depMin] = item.time.split(':').map(Number)
+      const depMinutes = (depHour || 0) * 60 + (depMin || 0)
+      const arrMinutes = depMinutes + item.duration
+      const arrHour = Math.floor(arrMinutes / 60) % 24
+      const arrMin = arrMinutes % 60
+      const arrivalTime = `${String(arrHour).padStart(2, '0')}:${String(arrMin).padStart(2, '0')}`
+      allTimes.add(arrivalTime)
+    }
   })
   
   return Array.from(allTimes).sort((a, b) => {
