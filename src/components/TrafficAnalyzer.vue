@@ -705,18 +705,26 @@ const setAlarm = async (time: string) => {
   
   try {
     if (isAndroid) {
-      // Android Intent to open clock app with pre-filled alarm
-      const intentUrl = `intent://alarm/#Intent;` +
-        `scheme=clock;` +
+      // Android: Try multiple methods
+      
+      // Method 1: Standard Android Intent (works on most devices)
+      const intentUrl = `intent:#Intent;` +
         `action=android.intent.action.SET_ALARM;` +
-        `i.hour=${hours};` +
-        `i.minutes=${minutes};` +
-        `S.message=${encodeURIComponent(message)};` +
-        `b.skip_ui=false;` +
+        `i.android.intent.extra.alarm.HOUR=${hours};` +
+        `i.android.intent.extra.alarm.MINUTES=${minutes};` +
+        `S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(message)};` +
+        `b.android.intent.extra.alarm.SKIP_UI=false;` +
         `end`
       
       console.log('📱 Opening Android clock app...', intentUrl)
       window.location.href = intentUrl
+      
+      // Fallback: Show instructions if intent doesn't work
+      setTimeout(() => {
+        if (confirm(`⏰ Clock app should open. If not, set alarm manually:\n\nTime: ${time}\nMessage: ${message}\n\nPress OK to copy time to clipboard.`)) {
+          navigator.clipboard?.writeText(time).catch(() => {})
+        }
+      }, 2000)
       
     } else if (isWindows) {
       // Windows: Open Alarms & Clock app
